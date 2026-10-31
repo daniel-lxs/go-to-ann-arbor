@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import { CROSSWALK } from './road-network.js';
 import { GEO } from './nyc-geodata.js';
 import { createRoadPaintMaterial } from './tsl-materials.js';
+import { curbStalls } from './curb-parking.js';
 
 // Road markings generated from the drivable road network (js/road-network.js), so the paint matches where traffic
 // actually drives and stops: dashed lane lines, double yellow centre lines on two-way roads (Lamp: not on residential
@@ -152,9 +153,13 @@ function buildRoadPaint(scene, network) {
       along(e, curb - sgn * Math.min(1.7, width) / 2 - sgn * 0.1, Math.min(1.7, width) - 0.45, GREEN);
     };
     // (not on a divided road's two halves, whose half-width spans both: their curbs aren't known here)
-    if (e.bikeR && !e.divided) bikeLane(e.half, e.bikeR);
-    if (!back && e.bikeL && !e.divided) bikeLane(-e.half, e.bikeL);
-    if (back && back.bikeR && !back.divided) bikeLane(-e.half, back.bikeR);
+    // Lamp: a parking lane along each curb (curb-parking.js) ends in a solid white line, any bike lane beside it
+    const pR = e.divided ? 0 : e.parkR || 0, pL = e.divided ? 0 : e.parkL || 0;
+    if (pR) along(e, e.half - pR, 0.12, WHITE);
+    if (pL) along(e, -e.half + pL, 0.12, WHITE);
+    if (e.bikeR && !e.divided) bikeLane(e.half - pR, e.bikeR);
+    if (!back && e.bikeL && !e.divided) bikeLane(-e.half + pL, e.bikeL);
+    if (back && back.bikeR && !back.divided) bikeLane(-e.half + pL, back.bikeR);
 
     // Stop bars across the lanes arriving at each stop line, from the centre line (or median) to the curb (none where a
     // street merely bends: a shape node of the centreline streets)
@@ -258,6 +263,15 @@ function buildRoadPaint(scene, network) {
         stack.push(next);
       }
       strip(...line.ends[0], ...line.ends[1], line.w, line.col, line.period, line.duty, line.phase, line.flow);
+    }
+  }
+
+  // Lamp: each parallel-parking stall's marks (curb-parking.js), from the parking lane's line to near the curb
+  for (const st of curbStalls()) {
+    for (const end of [-0.5, 0.5]) {
+      const cx = st.x + st.tx * st.length * end, cz = st.z + st.tz * st.length * end;
+      const h = st.lane / 2;
+      strip(cx - st.nx * h, cz - st.nz * h, cx + st.nx * (h - 0.35), cz + st.nz * (h - 0.35), 0.12, WHITE);
     }
   }
 

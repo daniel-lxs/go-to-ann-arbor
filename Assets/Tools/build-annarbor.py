@@ -14,7 +14,7 @@
 #   imperv/p*.json      City of Ann Arbor 2023 Impervious Surfaces (driveways, walks, patios), ImperviousSurfaces/MapServer/7
 #   Terrain Tiles (terrarium PNGs, AWS open data) for the heights
 # Run: .lamp/reference/venv/bin/python -I Assets/Tools/build-annarbor.py <app folder>
-import gzip, io, json, math, os, struct, sys, urllib.request
+import gzip, io, json, math, os, re, struct, sys, urllib.request
 import numpy as np
 import shapely
 import shapely.affinity
@@ -209,6 +209,30 @@ def mph(t):
     return round(n if 'mph' in v else n / 1.609)
 
 
+# Parking lanes along the curbs (OpenStreetMap parking:both / :left / :right), on the way's right (1) and left (2) as
+# drawn. Untagged, only the meters along Main, Liberty, Washington, State and South University in the middle of town
+# have one; every other curb is kept clear. Each is 2.4 m wide, added to the street's width where none is tagged.
+PARK_W = 2.4
+PARK_TOWN = (-480, 1500, -760, 820)
+METERED = re.compile(r'^(North |South |East |West )?(Main|Liberty|Washington|State) Street$|^South University Avenue$')
+
+
+def park_spec(t, pts):
+    def kind(v):
+        return None if v is None else 0 if v in ('no', 'separate', 'no_parking', 'no_stopping', 'fire_lane') else 1
+    both = kind(t.get('parking:both'))
+    r = kind(t.get('parking:right'))
+    l = kind(t.get('parking:left'))
+    r = both if r is None else r
+    l = both if l is None else l
+    if r is None and l is None:
+        mx, mz = pts[len(pts) // 2]
+        town = PARK_TOWN[0] < mx < PARK_TOWN[1] and PARK_TOWN[2] < mz < PARK_TOWN[3]
+        if town and METERED.match(t.get('name', '')) and t['highway'] in ('primary', 'secondary', 'tertiary', 'residential', 'unclassified'):
+            r = l = 1
+    return (1 if r else 0) | (2 if l else 0)
+
+
 drive = []
 for w in ways:
     t = w.get('tags', {})
@@ -220,11 +244,14 @@ for w in ways:
     if not LineString(pts).intersects(LAND.buffer(150)):
         continue
     wd, lanes, d, hw = road_spec(t)
+    park = 0 if hw else park_spec(t, pts)
+    if park and 'width' not in t:
+        wd = round(wd + PARK_W * ((park & 1) + (park >> 1)), 1)
     name = short_name(t.get('name', '') or t.get('ref', ''))
     drive.append({'id': w['id'], 'nodes': w['nodes'], 'pts': pts, 'w': wd, 'lanes': lanes, 'dir': d, 'hw': hw,
                   'name': name, 'tunnel': t.get('tunnel') in ('yes',), 'bridge': t.get('bridge') == 'yes',
                   'layer': t.get('layer', '0'), 'cls': road_class(t), 'bike': bike_spec(t, d != 0),
-                  'lf': int_tag(t, 'lanes:forward'), 'lb': int_tag(t, 'lanes:backward'), 'mph': mph(t)})
+                  'lf': int_tag(t, 'lanes:forward'), 'lb': int_tag(t, 'lanes:backward'), 'mph': mph(t), 'park': park})
 print(f'{len(drive)} drivable ways')
 
 # Road graph: split ways at nodes shared with another way
@@ -276,7 +303,7 @@ for r in drive:
                 a, b = gnode(ns[start], seg[0]), gnode(ns[i], seg[-1])
                 line = rdp(seg, 0.4)
                 glinks.append([a, b, gname(r['name']), r['w'], r['lanes'], r['dir'], flat(line[1:-1]),
-                               r['cls'], r['bike'], r['lf'], r['lb'], r['mph']])
+                               r['cls'], r['bike'], r['lf'], r['lb'], r['mph'], r['park']])
             start = i
 roadGraph = {'nodes': [v for p in gnodes for v in (r1(p[0]), r1(p[1]))], 'links': glinks, 'names': gnames}
 print(f'road graph {len(gnodes)} nodes {len(glinks)} links')

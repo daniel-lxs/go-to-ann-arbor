@@ -4,7 +4,7 @@
 
 <p align="center">Explore Ann Arbor, Michigan in 3D on foot, by car, by bike or by helicopter.</p>
 
-<p align="center"><a href="https://lamp.dev/?repo=https://github.com/mrubens/go-to-ann-arbor&amp;from=readme"><img src=".github/open-in-lamp.svg" width="164" height="48" alt="Open in Lamp"></a></p>
+<p align="center"><a href="https://mrubens.github.io/go-to-ann-arbor/"><img src=".github/play-in-browser.svg" width="220" height="48" alt="Play in your browser"></a>&nbsp;&nbsp;<a href="https://lamp.dev/?repo=https://github.com/mrubens/go-to-ann-arbor&amp;from=readme"><img src=".github/open-in-lamp.svg" width="164" height="48" alt="Open in Lamp"></a></p>
 
 ## Ideas to try
 
@@ -34,8 +34,9 @@ Lamp builds this kind of app: it needs Xcode and signing on your Mac, which Lamp
 - Uses [2023 Impervious Surfaces](https://a2maps.a2gov.org/a2arcgis/rest/services/ImperviousSurfaces/MapServer/7) by City of Ann Arbor
 - Uses [Urban Tree Canopy](https://a2maps.a2gov.org/a2arcgis/rest/services/NaturalFeatures/MapServer/10) by City of Ann Arbor
 - Uses [Current weather at Ann Arbor Municipal Airport (KARB)](https://www.weather.gov/documentation/services-web-api) by National Weather Service (NOAA), LicenseRef-US-Government-Public-Domain
+- Uses [TheRide GTFS timetable](https://www.theride.org/business/software-developers) by Ann Arbor Area Transportation Authority (TheRide)
 
-Map data is ODbL-1.0: it stays under that licence, credited, in this remix.
+Map data is ODbL-1.0: it stays under that license, credited, in this remix.
 
 NYC Open Data is used under its own terms (LicenseRef-NYC-Open-Data).
 

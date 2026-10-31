@@ -24,12 +24,13 @@ import {
   createLoftedBusMaterial
 } from './bus.js';
 import { groundHeight, groundTilt } from './terrain.js';
+import { loadTheRide, createSchedule, buildStopSigns } from './theride.js';
 
 // Cars and buses follow the road graph, obey signals, yield at crossings and react to collisions.
 // Vehicles replenish around the player; pedestrian-system.js manages the nearby walking population.
 
 const NUM_CARS = 70; // Ann Arbor: a quiet college town, not Manhattan
-const NUM_BUSES = 6;
+const NUM_BUSES = 16; // Lamp: TheRide's buses on the road near the player, as the timetable has them (theride.js)
 
 // Intelligent Driver Model: max acceleration, comfortable braking, time headway, standstill gap; the sideways
 // acceleration drivers accept in bends, which sets how fast they take each turn or lane shift; and how hard they brake
@@ -61,44 +62,36 @@ const VEHICLE_RADIUS = 380;
 const NEAR_RADIUS = 350;
 const VEHICLE_SPAWN_DISTANCE = 250;
 
-// 8-row LED destination sign atlas (route badge + destination) aligned with the 4-slot bus livery cycle
-// (slots 0/2 = Current MTA Blue/Gold, slot 1 = Select Bus Service, slot 3 = Classic White/Blue)
+// Lamp: the buses' amber LED destination signs, a row of the atlas for each bus, written when it takes a trip: the
+// route's number and where it's going, as TheRide's signs show them
+const SIGN_ROWS = 16;
 function createBusDestinationTexture() {
   const c = document.createElement('canvas');
   c.width = 512;
-  c.height = 512;
+  c.height = 64 * SIGN_ROWS;
   const ctx = c.getContext('2d');
   ctx.fillStyle = '#090b10';
-  ctx.fillRect(0, 0, 512, 512);
-  const routes = [
-    ['M101', '3 AV / HARLEM', '#0058b8', '#ff9d1c'],
-    ['M15', '+SELECT BUS / SOUTH FERRY', '#009ad6', '#46d8ff'],
-    ['M42', '42 ST PIER / UN', '#0058b8', '#ff9d1c'],
-    ['M1', '5 AV / HARLEM', '#0058b8', '#ff9d1c'],
-    ['M7', 'COLUMBUS AV / 14 ST', '#0058b8', '#ff9d1c'],
-    ['M60', '+SBS / LAGUARDIA', '#009ad6', '#46d8ff'],
-    ['M4', 'MADISON AV / CLOISTERS', '#0058b8', '#ff9d1c'],
-    ['M104', 'BROADWAY / TIMES SQ', '#0058b8', '#ff9d1c']
-  ];
-  routes.forEach(([route, dest, badgeBg, textCol], idx) => {
-    const y0 = idx * 64;
-    ctx.fillStyle = '#0b0e14';
-    ctx.fillRect(6, y0 + 8, 500, 48);
-    ctx.fillStyle = badgeBg;
-    ctx.fillRect(12, y0 + 11, 126, 42);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '900 32px Inter, Arial, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(route, 75, y0 + 33);
-    ctx.fillStyle = textCol;
-    ctx.font = '800 25px JetBrains Mono, monospace';
-    ctx.textAlign = 'left';
-    ctx.fillText(dest, 152, y0 + 33);
-  });
+  ctx.fillRect(0, 0, c.width, c.height);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 16;
+  tex.write = (row, route, dest) => {
+    const y0 = row * 64;
+    ctx.fillStyle = '#090b10';
+    ctx.fillRect(0, y0, 512, 64);
+    ctx.fillStyle = '#ffb21c';
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'center';
+    ctx.font = '900 34px Inter, Arial, sans-serif';
+    ctx.fillText(route, 52, y0 + 33);
+    ctx.textAlign = 'left';
+    let size = 26;
+    const text = dest.toUpperCase();
+    do ctx.font = `800 ${size}px JetBrains Mono, monospace`;
+    while (ctx.measureText(text).width > 400 && --size > 13);
+    ctx.fillText(text, 102, y0 + 33, 404);
+    tex.needsUpdate = true;
+  };
   return tex;
 }
 
@@ -397,8 +390,8 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
   {
     const { attribute, float, floor, max, mod, texture, uv, varying, vec2, vertexStage } = THREE.TSL;
     const state = attribute('busState', 'vec4');
-    const vRow = varying(vertexStage(mod(floor(max(float(0.0), state.w.sub(1.0)).add(0.5)), 8.0)));
-    const signUV = vec2(uv().x, uv().y.mul(0.095).add(0.015).add(float(7.0).sub(vRow).mul(0.125)));
+    const vRow = varying(vertexStage(mod(floor(max(float(0.0), state.w.sub(1.0)).add(0.5)), float(SIGN_ROWS))));
+    const signUV = vec2(uv().x, uv().y.mul(0.76).add(0.12).add(float(SIGN_ROWS - 1).sub(vRow)).div(SIGN_ROWS));
     busDestMat.colorNode = texture(busDestTex, signUV).rgb.mul(1.25);
   }
 
@@ -734,6 +727,13 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
   const weights = [];
   function chooseMove(v, fromLane) {
     const e = v.edge;
+    // Lamp: a bus on its route takes the move onto its route's next road (unless its lane can't, when it must leave it)
+    if (v.route) {
+      const next = v.route.edges[v.ri + 1];
+      const m = next && e.moves.find((o) => o.to === next);
+      if (m && !(fromLane && m.out[v.lane] < 0)) return m;
+      v.route = null;
+    }
     let total = 0;
     for (let k = 0; k < e.moves.length; k++) {
       const m = e.moves[k];
@@ -1112,6 +1112,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
       }
       cap = bendSpeed(v, v.conn);
     }
+    if (v.route) worst = Math.min(worst, busStop(v));
     const pg = playerGap(v, 0);
     if (pg > 0 && pg < LOOKAHEAD) { // (a player alongside, not yet clear ahead, isn't one to follow)
       worst = Math.min(worst, brake(v, pg, v.pSpeed));
@@ -1245,6 +1246,10 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     v.edge = v.move.to;
     v.lane = v.out;
     v.trail = v.conn; // the rear axle is still on it
+    if (v.route) {
+      if (v.route.edges[v.ri + 1] === v.edge) v.ri++;
+      else v.route = null; // off its route (the end of it, or a lane that couldn't take the turn)
+    }
     v.conn = null;
     v.commit = null;
     v.move = chooseMove(v, false);
@@ -1582,6 +1587,100 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
       return true;
     }
     return false;
+  }
+
+  // Lamp: TheRide's buses by the timetable (theride.js). Every half second: buses whose trip is over (off their route),
+  // out of sight, or that the player has left far behind are taken off; then each trip on the road whose bus the
+  // timetable puts within NEAR_RADIUS (out of sight, unless the view just jumped) gets one, there, in the right lane.
+  let schedule = null;
+  let scheduleTimer = 0;
+  const tripBus = new Map();
+  const tripsDone = new Set();
+  loadTheRide().then((data) => {
+    if (!data) return;
+    schedule = createSchedule(data, network);
+    const signs = buildStopSigns(data.stops, network);
+    group.add(signs.poles, signs.plates);
+  });
+  function releaseBus(b, done) {
+    if (b.trip) {
+      tripBus.delete(b.trip);
+      if (done) tripsDone.add(b.trip);
+    }
+    b.trip = null;
+    b.route = null;
+    b.edge = null;
+    b.conn = null;
+  }
+  function scheduleBuses(dt, jump) {
+    if (!schedule) return;
+    scheduleTimer -= dt;
+    if (scheduleTimer > 0 && !jump) return;
+    scheduleTimer = 0.5;
+    for (const b of buses) {
+      if (!b.edge) continue;
+      if (Math.hypot(b.x - focusX, b.z - focusZ) > VEHICLE_RADIUS) releaseBus(b, false);
+      else if (!b.route && (!hasView || !visible(b.x, b.z, 22))) releaseBus(b, true);
+    }
+    const active = schedule.activeTrips(Date.now());
+    const on = new Set();
+    for (const { trip, sec } of active) {
+      on.add(trip);
+      if (tripBus.has(trip) || tripsDone.has(trip)) continue;
+      const free = buses.find((b) => !b.edge);
+      if (!free) break;
+      const p = schedule.placeAt(trip, sec, free.half, { x: focusX, z: focusZ, r: NEAR_RADIUS + 300 });
+      if (!p) continue;
+      const e = p.route.edges[p.k];
+      const lane = e.lanes.length - 1;
+      const x = e.sx + e.dx * p.s + e.rx * e.lanes[lane];
+      const z = e.sz + e.dz * p.s + e.rz * e.lanes[lane];
+      if (Math.hypot(x - focusX, z - focusZ) > NEAR_RADIUS) continue;
+      if (!jump && nearView(x, z, free.half + 4, VEHICLE_SPAWN_DISTANCE)) continue;
+      if (player.active && Math.hypot(x - player.x, z - player.z) < 25) continue;
+      if (!laneClear(e.occ[lane], p.s, free.half + 6)) continue;
+      free.trip = trip;
+      free.route = p.route;
+      free.ri = p.k;
+      free.stopIx = p.next;
+      free.dwellUntil = 0;
+      place(free, e, lane, p.s);
+      tripBus.set(trip, free);
+      const l = schedule.label(trip);
+      busDestTex.write(free.variant, l.short, l.headsign);
+    }
+    for (const t of tripsDone) if (!on.has(t)) tripsDone.delete(t);
+  }
+  // Braking for the bus's next stop on its route (its front door at the sign), and waiting there: a while for people
+  // to get on and off, and until the time it leaves if it's early
+  function busStop(v) {
+    const r = v.route;
+    const stops = r.stops;
+    let d = Infinity;
+    while (v.stopIx < stops.length) {
+      const st = stops[v.stopIx];
+      if (st.k === v.ri && !v.conn) d = st.s + 4 - v.s - v.half;
+      else if (st.k === v.ri + 1) d = v.conn ? st.s + 4 - (v.cs - v.conn.len) - v.half : v.edge.len - v.s + 10 + st.s + 4 - v.half;
+      else if (st.k <= v.ri) d = -Infinity;
+      else return 0;
+      if (d < -1.5 && !v.dwellUntil) { v.stopIx++; continue; } // passed it
+      break;
+    }
+    if (v.stopIx >= stops.length || d > LOOKAHEAD) return 0;
+    const st = stops[v.stopIx];
+    if (!v.dwellUntil && d < 1.5 && v.speed < 0.4) {
+      const late = st.dep - schedule.secondsInto(v.trip, Date.now());
+      v.dwellUntil = clock + Math.max(8 + Math.random() * 10, Math.min(late, 90));
+    }
+    if (v.dwellUntil) {
+      if (clock >= v.dwellUntil) {
+        v.dwellUntil = 0;
+        v.stopIx++;
+        return 0;
+      }
+      return -v.driver.bMax;
+    }
+    return stopAt(v, Math.max(0, d), 0.3);
   }
 
   // =========================================================================
@@ -1931,11 +2030,13 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections) {
     for (let scanned = 0; scanned < vehicles.length && budget > 0; scanned++) {
       const v = vehicles[vehicleCursor];
       vehicleCursor = (vehicleCursor + 1) % vehicles.length;
+      if (v.bus) continue; // (TheRide's buses come by the timetable: scheduleBuses)
       const d = v.edge ? Math.hypot(v.x - focusX, v.z - focusZ) : Infinity;
       if (d <= (jump ? NEAR_RADIUS : VEHICLE_RADIUS)) continue;
       budget--;
       spawnVehicle(v, jump ? 0 : 100, NEAR_RADIUS, !jump);
     }
+    scheduleBuses(dt, jump);
     buildOccupancy();
     for (const m of bodyMeshes) m.count = 0;
     litVehicleCount = 0;

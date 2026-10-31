@@ -108,8 +108,18 @@ Trails (`GEO.trails`, OSM paths, footways, bike paths and tracks inside parks, w
 not sidewalks or golf courses) are flat ribbons from `buildTrails` in `golf.js`: dirt for unpaved, gray paving else.
 Golf courses (`golf.js`, `GEO.golf`): striped fairways, greens with pins, tees, bunkers, cart paths. Railways
 (`railways.js`, `GEO.rail`) lay track with ties and run trains that sound their horn (`audio-events.js`). Parked cars
-(`parked-cars.js`) fill parking-lot stalls and line named downtown streets with room beside the traffic (not the
-arterials in `NO_PARKING`), near ones in full with wheels, far ones as simple shapes; traffic is 70 cars and 6 buses.
+(`parked-cars.js`) fill parking-lot stalls and the curb parking lanes, near ones in full with wheels, far ones as simple
+shapes; traffic is 70 cars and up to 16 buses. TheRide buses (`theride.js`, `data/theride.json.gz` from
+`Assets/Tools/build-theride.py`, which reads TheRide's GTFS feed unzipped in .lamp/reference/gtfs): every trip on the
+road now by Ann Arbor's clock and calendar (a date outside the feed's dates is moved by whole weeks into them) is given
+a bus where its timetable puts it near the player, on its route's path matched to the road edges, stopping at each
+real stop until its departure; stop signs stand at the curb by each stop. Buses wear TheRide's livery (white, sky-blue
+top, red band, navy skirt; `bus.js`) and their sign shows route number and destination. Rebuild the data when the
+feed changes (it runs to Jan 2027). Curb parking lanes (`curb-parking.js`): the build's `park_spec` reads OSM
+parking:both/left/right (untagged: Main, Liberty, Washington, State and S University downtown only) into link field 12
+(bits 1 right, 2 left as drawn) and widens the street 2.4 m per side; traffic lanes stay inside them, road paint draws
+each lane's line and its 6.5 m stall marks, and parked cars stand in those stalls.
+Storefronts: the ground floor (storey 0 from the building's ground) has the same windows as the floors above (the person wanted it to match them), except about one bay in four (`doorBay` in `facadeCell`), which is a shop door glazed to the sidewalk: a room seen through it by interior mapping (`evaluateShopInterior` in tsl-materials.js), and on pre-war walls a double door frame (stiles, kick plate, handles). No awnings (the person disliked them): building-details.js makes only the odd scaffold shed.
 A block is paved over (no lawn) only where its buildings and the city's paving map leave under a fifth of it
 unpaved (downtown's Main and State Street blocks, strip malls, industry); campus and the neighborhoods keep grass.
 A park's or golf course's slab (an odd-shaped lawn block) is only its sidewalk ring, so the lawn shows inside.

@@ -3,6 +3,7 @@ import { GEO } from './nyc-geodata.js';
 import { PARKING_LOTS } from './city-config.js';
 import { BODY_SPECS, buildCarGeometry, buildCarProxyGeometry, buildSteerableWheelGeo, createLoftedCarMaterial, carStyleCode } from './cars.js';
 import { groundHeight, groundTilt } from './terrain.js';
+import { curbStalls } from './curb-parking.js';
 
 // Parked cars: about two in three stalls of every surface parking lot (in the stalls parking-stripes.js paints: rows
 // off the lot's longest edge, back to back every 18 m), and the curb lanes of the main streets downtown, around campus
@@ -13,9 +14,6 @@ import { groundHeight, groundTilt } from './terrain.js';
 const STALL_W = 2.7, MODULE = 18;
 const NEAR = 70, FAR = 650;
 const LAWN_Y = 0.239;
-// the streets with parking along them, in the middle of town
-const TOWN = { minX: -480, maxX: 1500, minZ: -760, maxZ: 820 };
-const NO_PARKING = /Huron|Fuller|Glen|Washtenaw|Stadium|Division St|Broadway|Plymouth|Packard|Jackson|Miller|Beakes|Catherine/;
 
 const KINDS = ['sedan', 'sedan', 'suv', 'sedan', 'suv', 'minivan', 'suv', 'pickup', 'sedan', 'suv', 'van', 'sedan', 'suv', 'pickup'];
 const PAINT = [0xf2f4f7, 0x1c2026, 0xc8d0d8, 0x52575e, 0x9aa2ac, 0x1d3b6c, 0x741d22, 0xe6eaef, 0x363b42, 0x28382e, 0x20385c,
@@ -77,16 +75,7 @@ function lotCars(out) {
   }
 }
 
-// Where traffic drives across a street of this width (road-network.js: lanesOf, laneOffsets): its outermost lane's middle
-function outerLane(w, dir) {
-  const half = w / 2;
-  if (dir === 0) return half >= 8.5 ? 5.4 : 1.8;
-  return half >= 10 ? 7.2 : half >= 8.5 ? 5.4 : half >= 6.8 ? 3.6 : half >= 4.4 ? 1.8 : 0;
-}
-
 function streetCars(out) {
-  const G = GEO.roadGraph;
-  const N = G.nodes;
   const cuts = [];
   for (const c of GEO.curbCuts || []) cuts.push(c[0], c[1]);
   const cutGrid = new Map();
@@ -103,39 +92,11 @@ function streetCars(out) {
     }
     return false;
   };
-  for (const [a, b, name, w, lanes, dir, flat] of G.links) {
-    const nm = G.names[name] || '';
-    if (!nm || NO_PARKING.test(nm)) continue;
-    const free = w / 2 - outerLane(w, dir) - 0.9;
-    if (free < 2.0) continue;
-    const pts = [[N[a * 2], N[a * 2 + 1]]];
-    for (let i = 0; i < flat.length; i += 2) pts.push([flat[i], flat[i + 1]]);
-    pts.push([N[b * 2], N[b * 2 + 1]]);
-    const mx = (pts[0][0] + pts[pts.length - 1][0]) / 2, mz = (pts[0][1] + pts[pts.length - 1][1]) / 2;
-    if (mx < TOWN.minX || mx > TOWN.maxX || mz < TOWN.minZ || mz > TOWN.maxZ) continue;
-    let total = 0;
-    for (let i = 1; i < pts.length; i++) total += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
-    const off = w / 2 - 1.05;
-    let run = 0;
-    for (let i = 1; i < pts.length; i++) {
-      const [x0, z0] = pts[i - 1], [x1, z1] = pts[i];
-      const L = Math.hypot(x1 - x0, z1 - z0);
-      if (L < 0.5) continue;
-      const tx = (x1 - x0) / L, tz = (z1 - z0) / L;
-      // a car every 6.5 m, clear of the corners (and the crosswalks) by 14 m
-      for (let s = (6.5 - (run % 6.5)) % 6.5; s < L; s += 6.5) {
-        const along = run + s;
-        if (along < 14 || along > total - 14) continue;
-        for (const side of [1, -1]) {
-          // the right-hand curb going this way is (-tz, tx) in this frame (x east, z south)
-          const x = x0 + tx * s - tz * off * side, z = z0 + tz * s + tx * off * side;
-          if (hash(x, z, 3) > 0.72 || nearCut(x, z)) continue;
-          const yaw = side > 0 ? Math.atan2(tx, tz) : Math.atan2(-tx, -tz);
-          out.push({ x, z, yaw, y: 0, street: true });
-        }
-      }
-      run += L;
-    }
+  // about seven in ten of the stalls marked along the parking lanes (curb-parking.js), facing the way traffic goes
+  for (const st of curbStalls()) {
+    if (hash(st.x, st.z, 3) > 0.72 || nearCut(st.x, st.z)) continue;
+    const yaw = st.side > 0 ? Math.atan2(st.tx, st.tz) : Math.atan2(-st.tx, -st.tz);
+    out.push({ x: st.x, z: st.z, yaw, y: 0, street: true });
   }
 }
 

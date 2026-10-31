@@ -542,7 +542,14 @@ function createLoftedBusMaterial() {
   const legacyLivery = mix(mix(mtaWhite, color(0x0055b3), blueStripe), color(0x00a4e4), cyanRibbon);
 
   const skirt = covAt(0.415, p.y, invY);
-  const livery = mix(mix(modernLivery, legacyLivery, isLegacy), color(0x181c22), skirt).mul(shadeY);
+  // Lamp: TheRide's livery (Ann Arbor): white below, light blue over the top half and round the destination sign, a red
+  // pinstripe between them and a navy band above the black skirt (the New York liveries above are no longer drawn)
+  const shell = max(side, max(front, rear));
+  const upperHalf = one.sub(covAt(1.2, p.y, invY)).mul(shell);
+  let rideLivery = mix(color(0xf1f3f5), color(0x58aee0), upperHalf);
+  rideLivery = mix(rideLivery, color(0xc8202e), band(p.y.sub(1.165), 0.028, invY).mul(shell));
+  rideLivery = mix(rideLivery, color(0x173a6e), band(p.y.sub(0.56), 0.14, invY).mul(max(side, rear)));
+  const livery = mix(rideLivery, color(0x181c22), skirt).mul(shadeY);
 
   // Front MTA circular badge, SBS front lettering band, wheelchair icon & front/rear NY license plates
   const dMta = length(vec2(p.x, p.y.sub(0.95)));
@@ -603,7 +610,6 @@ function createLoftedBusMaterial() {
   body = mix(body, color(0x282418).mul(rearUpperSlats), rearLouverArea);
   body = mix(body, color(0x1c222b), rearAdFrame);
   body = mix(body, color(0x162e48), rearAdInner);
-  body = mix(body, color(0xf2f6fa), max(mtaDisc, sbsFrontBand));
   body = mix(body, color(0x1258b8), wheelchairBadge);
   body = mix(body, color(0x143884), rearBumperStickers);
   body = mix(body, color(0x12151a), max(pod, rearBezel));
@@ -612,7 +618,7 @@ function createLoftedBusMaterial() {
   body = mix(body, color(0x9e0e16), max(tailLamp, max(highBrake, rearIdLamps)));
   body = mix(body, color(0xd86e18), turnRear);
   body = mix(body, color(0xe8eef4), reverse);
-  body = mix(body, mix(color(0xf2b518), color(0x182648), plateText.mul(0.65)), plate);
+  body = mix(body, mix(color(0xeef1f4), color(0x182648), plateText.mul(0.65)), plate); // Lamp: a Michigan plate
   body = mix(body, glassTint, glass);
 
   const col = mix(mix(body, color(0x191d22), isTrim), color(0xd0d5dc), isPod);
