@@ -456,7 +456,7 @@ body.hud-minimized .toolbar > :not(#btn-toggle-hud) {
 }
 
 .time-btn.active .seg-label {
-  max-width: 120px;
+  max-width: 160px;
   opacity: 1;
 }
 

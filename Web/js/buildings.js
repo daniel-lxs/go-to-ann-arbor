@@ -300,6 +300,21 @@ function buildCityBlocks(scene, landmarkColliders = []) {
     [createPreWarBuildingMaterial, {
       stoneColor: 0x7d8c99, trimColor: 0xe9e6dc, windowGlassColor: 0x1a242e,
       windowWidth: 3.3, floorHeight: 3.0, litProbability: 0.42, warmth: 0.9, seed: 73.1
+    }],
+    // 8: The University's collegiate brick: deep red-brown with limestone trim, tall windows (Angell, the Union, the Law Quad's neighbours)
+    [createPreWarBuildingMaterial, {
+      stoneColor: 0x8a4632, trimColor: 0xd9ccb0, windowGlassColor: 0x141e28,
+      windowWidth: 2.2, floorHeight: 4.2, litProbability: 0.62, warmth: 0.78, seed: 88.2
+    }],
+    // 9: Campus & civic limestone: pale stone with darker sills (Rackham, the Federal Building, City Hall's older neighbours)
+    [createPreWarBuildingMaterial, {
+      stoneColor: 0xcfc6b0, trimColor: 0x8f8670, windowGlassColor: 0x18242e,
+      windowWidth: 2.3, floorHeight: 4.4, litProbability: 0.5, warmth: 0.7, seed: 101.6
+    }],
+    // 10: Civic brick: the city's and schools' tan-orange brick with concrete bands
+    [createPreWarBuildingMaterial, {
+      stoneColor: 0xb27a52, trimColor: 0xbdb7a8, windowGlassColor: 0x16222c,
+      windowWidth: 3.0, floorHeight: 3.8, litProbability: 0.48, warmth: 0.75, seed: 117.3
     }]
   );
   const materials = facades.map(([create, opts]) => create({ ...opts, footprintLocal: true }));
@@ -448,13 +463,15 @@ function buildCityBlocks(scene, landmarkColliders = []) {
         footprints: b.polygons.map((p) => ({ h: b.height + 0.22, pts: p.outer, holes: p.holes })) });
       continue;
     }
-    // Lamp: Ann Arbor's survey says what each building is (1 house or apartments, 2 shops, 3 offices, 4 the
-    // university & the city's own), not when it was built
+    // Lamp: Ann Arbor's survey says what each building is (1 house or apartments, 2 shops, 3 offices, 4 public) and
+    // who owns it (5 the University, 6 the city, county, schools or federal government), not when it was built
     const kind = b.kind || 1;
     const mat = kind === 1 ? (b.height < 13 ? (tone < 0.18 ? 1 : 5 + Math.floor(rand() * 3)) : (tone < 0.7 ? 1 : 0))
       : kind === 2 ? (b.height < 16 ? (tone < 0.65 ? 1 : 0) : (tone < 0.5 ? 2 : 3))
         : kind === 3 ? (b.height < 14 ? (tone < 0.5 ? 1 : 3) : (tone < 0.6 ? 2 : 4))
-          : (b.height < 40 ? (tone < 0.55 ? 1 : 0) : (tone < 0.5 ? 0 : 3));
+          : kind === 5 ? (b.height > 30 && tone < 0.45 ? 2 : tone < 0.62 ? 8 : 9)
+            : kind === 6 ? (tone < 0.6 ? 10 : 9)
+              : (b.height < 40 ? (tone < 0.55 ? 1 : 0) : (tone < 0.5 ? 0 : 3));
     // Lamp: the building stands on the lowest ground under its outline (terrain.js), and its details with it
     let ground = groundHeight(b.cx, b.cz);
     for (const polygon of b.polygons) for (const p of polygon.outer) ground = Math.min(ground, groundHeight(p.x, p.z));
@@ -473,7 +490,7 @@ function buildCityBlocks(scene, landmarkColliders = []) {
     }
     const neighbours = nearbyReserves(b, 6);
     addSurveyedFireEscapes(b, detail, storeys[mat], neighbours);
-    if (mat < 5) detailsToPlace.push({ b, detail, masonry: mat < 2, rand });
+    if (mat < 5 || mat > 7) detailsToPlace.push({ b, detail, masonry: mat < 2 || mat > 7, rand });
     else quadtree.insert(detail); // houses: no storefront awnings or rooftop plant
     allBlocks.push(detail);
   }

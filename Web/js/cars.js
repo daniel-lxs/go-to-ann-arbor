@@ -165,6 +165,49 @@ const BODY_SPECS = {
   }
 };
 BODY_SPECS.taxi = Object.assign({}, BODY_SPECS.sedan, { name: 'taxi', sign: true });
+// Lamp: the player's car, a Subaru Forester: a tall, boxy greenhouse on a flat, low belt line (big windows with a rear
+// quarter window behind the C-pillar), a high flat roof, an upright windshield and a near-vertical tailgate, a tall
+// blunt nose and more ground clearance than the traffic SUV (which reads as a lower, wagon-like Outback)
+BODY_SPECS.forester = Object.assign({}, BODY_SPECS.suv, {
+  name: 'forester',
+  zFront: 2.3,
+  zRear: -2.33,
+  wheelRadius: 0.375,
+  wheelZ: 1.33,
+  sill: [[2.3, 0.44], [1.2, 0.39], [-1.2, 0.39], [-2.33, 0.45]],
+  shoulder: [[2.3, 0.86], [1.75, 0.92], [1.45, 0.935], [0, 0.945], [-1.45, 0.955], [-2.33, 0.95]],
+  edge: [[2.16, 1.02], [1.7, 1.075], [1.2, 1.095], [0.82, 1.1], [0, 1.105], [-0.95, 1.11], [-1.6, 1.115], [-2.05, 1.115], [-2.33, 1.1]],
+  crown: [[2.16, 0.04], [0.98, 0.036], [0.72, 0.004], [-2.33, 0.004]],
+  nose: { halfWidth: [0.3, 0.74, 3], edge: [0.12, 0.96, 2.8], crown: [0.12, 0.012, 2], sill: [0.16, 0.48, 2], shoulder: [0.2, 0.76, 2.8] },
+  tail: { halfWidth: [0.22, 0.8, 3.2], edge: [0.04, 1.08, 3], crown: [0.04, 0.004, 2], sill: [0.14, 0.5, 2], shoulder: [0.16, 0.9, 2.8] },
+  noseRake: { length: 0.5, y: [[0.4, 0.07], [0.55, 0], [0.8, 0.008], [0.95, 0.05], [1.06, 0.1]], plan: 0.06 },
+  tailRake: { length: 0.3, y: [[0.42, 0.06], [0.56, 0], [0.7, 0], [0.8, 0.012], [1.05, 0.016], [1.12, 0.02]], plan: 0.035 },
+  cabin: {
+    cowl: 0.92,
+    roofFront: 0.02,
+    roofRear: -2.02,
+    deck: -2.24,
+    roofY: [[0.02, 1.765], [-0.9, 1.785], [-2.02, 1.77]],
+    rail: [0.7, 0.69],
+    inset: 0.03,
+    bulge: 0.01,
+    roofEdge: 0.05,
+    roofCrown: 0.024,
+    roofRound: 4.6,
+    pillars: [-0.34, -1.3],
+    glassEnd: -2.12
+  },
+  doors: [0.88, -0.34, -1.12],
+  handles: [-0.12, -0.96],
+  headlight: [0.64, 0.92, 0.25, 0.055],
+  taillight: [0.66, 1.08, 0.2, 0.08],
+  grille: [0.85, 0.36, 0.09],
+  intake: [0.52, 0.5, 0.07],
+  plates: [0.6, 0.86],
+  bumperLine: [0.98, 0.7],
+  bumpers: [[0.57, 0.045], [0.6, 0.045]],
+  cladding: 0.5
+});
 BODY_SPECS.pickup = {
   name: 'pickup',
   zFront: 2.74,

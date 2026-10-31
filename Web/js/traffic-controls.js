@@ -1,8 +1,8 @@
 import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { groundHeight } from './terrain.js';
-import { Fn, color, mod, step, float, mix } from 'three/tsl';
-import { SIGNAL_TIMING } from './city-config.js';
+import { color, mix, uniform } from 'three/tsl';
+import { signalPhase } from './city-config.js';
 
 // Lamp: Ann Arbor's traffic lights and stop & yield signs, where the road network put them (road-network.js, from
 // OpenStreetMap): at a signalised intersection, a mast arm on the far right corner of every approach with a head over
@@ -85,25 +85,19 @@ const silhouette = (shape) => (ctx) => {
 };
 
 // The lamps of a head, top to bottom, each lit through its part of the cycle traffic obeys (city-config.js's
-// signalPhase): the main road (axisIndex 0) green, amber, then red while the cross street has its green and amber
+// signalPhase, for the main road (axisIndex 0) or the cross street), switched by update() every frame
 const LAMPS = ['red', 'amber', 'green'];
 const LAMP_COLORS = { red: 0xff2a1e, amber: 0xffa20e, green: 0x1cff7a };
-function lampMaterial(lamp, mainRoad, clock) {
-  const { cycle, avenueAmber, avenueRed, streetAmber } = SIGNAL_TIMING;
+function lampMaterial(lamp) {
+  const lit = color(LAMP_COLORS[lamp]);
+  const on = uniform(0);
   const mat = new THREE.MeshBasicNodeMaterial();
-  mat.colorNode = Fn(() => {
-    const t = mod(clock, cycle);
-    const between = (a, b) => step(a, t).mul(float(1).sub(step(b, t)));
-    const on = mainRoad
-      ? { green: float(1).sub(step(avenueAmber, t)), amber: between(avenueAmber, avenueRed), red: step(avenueRed, t) }[lamp]
-      : { red: float(1).sub(step(avenueRed, t)), green: between(avenueRed, streetAmber), amber: step(streetAmber, t) }[lamp];
-    const lit = color(LAMP_COLORS[lamp]);
-    return mix(lit.mul(0.08), lit.mul(2.2), on); // a dark, tinted lens when off; bright enough to bloom when on
-  })();
+  mat.colorNode = mix(lit.mul(0.08), lit.mul(2.2), on); // a dark, tinted lens when off; bright enough to bloom when on
+  mat.userData.on = on;
   return mat;
 }
 
-function buildTrafficControls(group, network, signalClock) {
+function buildTrafficControls(group, network) {
   group.name = 'TrafficControls';
   const dummy = new THREE.Object3D();
   const lists = new Map(); // name -> matrices
@@ -208,8 +202,8 @@ function buildTrafficControls(group, network, signalClock) {
     arm: [new THREE.CylinderGeometry(1, 1, 1, 8).rotateX(Math.PI / 2), metal, true],
     head: [headGeo, housing, true],
     ...Object.fromEntries(LAMPS.flatMap((lamp, i) => [
-      [lamp + 'A', [lampGeo[i], lampMaterial(lamp, true, signalClock), false]],
-      [lamp + 'B', [lampGeo[i], lampMaterial(lamp, false, signalClock), false]]
+      [lamp + 'A', [lampGeo[i], lampMaterial(lamp), false]],
+      [lamp + 'B', [lampGeo[i], lampMaterial(lamp), false]]
     ])),
     post: [new THREE.CylinderGeometry(1, 1, 1, 6), metal, true],
     stop: [plane, face(stopFace), true],
@@ -230,7 +224,11 @@ function buildTrafficControls(group, network, signalClock) {
   }
   group.userData.terrain = 'set'; // each was stood on the ground as it was placed
   console.info(`[traffic controls] ${lights} signal heads, ${signs} stop & yield signs`);
-  return { lights, signs, clock: signalClock };
+  const lamps = LAMPS.flatMap((lamp) => [[lamp, true, kinds[lamp + 'A'][1]], [lamp, false, kinds[lamp + 'B'][1]]]);
+  const update = (time) => {
+    for (const [lamp, mainRoad, mat] of lamps) mat.userData.on.value = signalPhase(time, mainRoad) === lamp ? 1 : 0;
+  };
+  return { lights, signs, update };
 }
 
 export { buildTrafficControls };

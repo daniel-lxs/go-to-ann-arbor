@@ -172,19 +172,16 @@ function createNYLicensePlateTexture() {
   c.width = 256;
   c.height = 128;
   const ctx = c.getContext('2d');
-  ctx.fillStyle = '#ffb81c';
+  ctx.fillStyle = '#f4f6f8';
   ctx.fillRect(0, 0, 256, 128);
-  ctx.fillStyle = '#0d2244';
-  ctx.fillRect(6, 6, 244, 24);
-  ctx.fillStyle = '#ffb81c';
-  ctx.font = '800 15px Inter, Arial, sans-serif';
+  ctx.fillStyle = '#17325f';
   ctx.textAlign = 'center';
-  ctx.fillText('NEW YORK', 128, 23);
-  ctx.fillStyle = '#0d2244';
-  ctx.font = '900 48px JetBrains Mono, monospace';
-  ctx.fillText('7Y48A', 128, 82);
+  ctx.font = '800 18px Inter, Arial, sans-serif';
+  ctx.fillText('MICHIGAN', 128, 26);
+  ctx.font = '900 50px JetBrains Mono, monospace';
+  ctx.fillText('GO BLU', 128, 84);
   ctx.font = '700 13px Inter, Arial, sans-serif';
-  ctx.fillText('NYC T&LC', 128, 114);
+  ctx.fillText('PURE MICHIGAN', 128, 114);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 16;
@@ -484,42 +481,26 @@ class ThirdPersonControllerManager {
   }
 
   // =========================================================================
-  // 2. CAR (3D LOFTED SCULPTED NYC MEDALLION YELLOW TAXI SEDAN)
+  // 2. CAR (3D LOFTED BLACK COMPACT SUV, A SUBARU FORESTER'S LINES: ROOF RAILS, BLACK CLADDING)
   // =========================================================================
   createCarEntity() {
     const root = new THREE.Group();
-    root.name = 'PlayerTaxiCar';
+    root.name = 'PlayerCar';
 
     const chassisPivot = new THREE.Group();
     root.add(chassisPivot);
 
-    const spec = BODY_SPECS.taxi;
-    const taxiLoftMat = createLoftedCarMaterial(spec, 0xffbe14);
+    const spec = BODY_SPECS.forester;
+    const taxiLoftMat = createLoftedCarMaterial(spec, 0x16181b);
 
-    // 1. 3D Lofted Taxi Body + Curved Windscreens + Crowned Roof + Side Mirrors + Roof Sign
+    // 1. 3D Lofted SUV Body + Curved Windscreens + Crowned Roof + Side Mirrors + Roof Rails
     const carBodyGeo = buildCarGeometry(spec, false);
     const carBodyMesh = new THREE.Mesh(carBodyGeo, taxiLoftMat);
     carBodyMesh.castShadow = true;
     carBodyMesh.receiveShadow = true;
     chassisPivot.add(carBodyMesh);
 
-    // 2. Authentic NYC Taxi Side Door T&LC Medallion & Fare Tariff Emblem Decals, hugging the curved front doors
-    const doorDecalTex = createTaxiDoorDecalTexture();
-    const doorDecalMat = new THREE.MeshStandardNodeMaterial({
-      map: doorDecalTex,
-      roughness: 0.24,
-      metalness: 0.34,
-      polygonOffset: true,
-      polygonOffsetFactor: -2,
-      polygonOffsetUnits: -2
-    });
-    const doorMid = (spec.doors[0] + spec.doors[1]) / 2;
-    for (const side of [-1, 1]) {
-      const decal = new THREE.Mesh(buildCarSidePatch(spec, side, doorMid - 0.36, doorMid + 0.36, 0.53, 0.81, 0.003), doorDecalMat);
-      chassisPivot.add(decal);
-    }
-
-    // 3. High-Detail NY Empire Gold License Plates on the raked bumpers, tilted to follow the fascias
+    // 3. Michigan license plates on the raked bumpers, tilted to follow the fascias
     const nyPlateTex = createNYLicensePlateTexture();
     const nyPlateMat = new THREE.MeshStandardNodeMaterial({ map: nyPlateTex, roughness: 0.28 });
     for (const front of [true, false]) {
@@ -575,7 +556,7 @@ class ThirdPersonControllerManager {
 
     return {
       type: 'car',
-      label: 'Ann Arbor Taxi',
+      label: 'Your Car',
       mesh: root,
       chassisPivot,
       carState,

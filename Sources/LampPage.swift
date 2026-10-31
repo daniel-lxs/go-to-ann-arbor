@@ -987,6 +987,12 @@ final class LampPageBlockedHost: NSObject {
         LampPageGuard.watch(view, scheme: files.scheme)
         #if os(macOS)
         LampPageReader.watch(view)
+        // The app menu's Reload, when Lamp has no change waiting: the page of the window in front opens again, a game
+        // where the player was. The pages are the reader's (`LampPageReader.page`), so a closed window's isn't chosen.
+        LampReload.page = {
+            LampPageReader.page(in: NSApp.keyWindow ?? NSApp.mainWindow)?
+                .evaluateJavaScript("window.__lampReloadNow ? window.__lampReloadNow() : location.reload()", in: nil, in: .page) { _ in }
+        }
         #endif
         view.load(URLRequest(url: URL(string: "\(files.scheme)://app/index.html")!))
         return view
@@ -1012,6 +1018,12 @@ final class LampPageBlockedHost: NSObject {
     /// What each window's pages held when last read, by the window's number.
     private static var read: [Int: [LampScreen.Item]] = [:]
     private static let script = "(function () {\n  var FOCUSABLE = \'[data-focus], button, a[href], input, select, textarea, [tabindex]\';\n  var focused = document.activeElement, out = [];\n  function box(el) {\n    var r = el.getBoundingClientRect();\n    if (r.width <= 0 || r.height <= 0 || r.right < 0 || r.bottom < 0 || r.left > window.innerWidth || r.top > window.innerHeight) return null;\n    var s = window.getComputedStyle(el);\n    if (s.visibility === \'hidden\' || s.display === \'none\' || parseFloat(s.opacity) === 0) return null;\n    return r;\n  }\n  function words(t) { return (t || \'\').replace(/\\s+/g, \' \').trim(); }\n  var all = document.body ? document.body.querySelectorAll(\'*\') : [];\n  for (var i = 0; i < all.length; i++) {\n    var el = all[i], r = box(el);\n    if (!r || el.tagName === \'SCRIPT\' || el.tagName === \'STYLE\') continue;\n    var takes = el === focused || (el.matches(FOCUSABLE) && !(el.getAttribute(\'tabindex\') === \'-1\' && !el.hasAttribute(\'data-focus\')));\n    if (takes) {\n      var field = el.tagName === \'INPUT\' || el.tagName === \'TEXTAREA\';\n      out.push({ kind: field ? \'field\' : el.tagName === \'SELECT\' ? \'choice\' : \'button\',\n        name: words(el.getAttribute(\'aria-label\') || el.getAttribute(\'alt\') || (field ? el.getAttribute(\'placeholder\') : el.innerText)).slice(0, 120),\n        value: field ? String(el.value || \'\') : \'\', focused: el === focused, x: r.left, y: r.top, w: r.width, h: r.height });\n      continue;\n    }\n    if (el.closest && el.parentElement && el.parentElement.closest(FOCUSABLE)) continue;\n    var own = \'\';\n    for (var c = el.firstChild; c; c = c.nextSibling) if (c.nodeType === 3) own += c.nodeValue;\n    own = words(own);\n    if (own) out.push({ kind: \'text\', name: own.slice(0, 160), value: \'\', focused: false, x: r.left, y: r.top, w: r.width, h: r.height });\n    else if (el.tagName === \'IMG\' && el.getAttribute(\'alt\')) out.push({ kind: \'image\', name: words(el.getAttribute(\'alt\')), value: \'\', focused: false, x: r.left, y: r.top, w: r.width, h: r.height });\n  }\n  return JSON.stringify(out);\n})();"
+
+    /// The page shown in a window, or, with none there, the first shown anywhere: what the app menu's Reload reopens.
+    static func page(in window: NSWindow?) -> WKWebView? {
+        let shown = pages.allObjects.filter { $0.window != nil }
+        return shown.first { $0.window === window } ?? shown.first { $0.window?.isVisible == true } ?? shown.first
+    }
 
     static func watch(_ view: WKWebView) {
         pages.add(view)
@@ -1334,13 +1346,17 @@ final class LampPageBlockedHost: NSObject {
     /// What the page did with a change (lamp-game.js): put in, reopened, waiting for a pause, back where it was.
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
         guard message.frameInfo.isMainFrame, let said = message.body as? [String: Any], let state = said["state"] as? String else { return }
-        tell(said["gen"] as? Int ?? gen, state, why: said["why"] as? String)
+        // A report also says what was built again and what waits for Reload, and a held change whether it goes in at
+        // the game's next pause by itself: passed on as the page gave them.
+        let more = said.filter { ["built", "kept", "waits", "pause"].contains($0.key) }
+        tell(said["gen"] as? Int ?? gen, state, why: said["why"] as? String, more: more)
     }
 
     /// `why` is the page's reason for opening again or holding a change (code it couldn't swap in), or what came through.
-    private func tell(_ gen: Int, _ state: String, why: String? = nil) {
+    private func tell(_ gen: Int, _ state: String, why: String? = nil, more: [String: Any] = [:]) {
         var body: [String: Any] = ["gen": gen, "state": state, "epoch": epoch, "place": Self.place]
         if let why { body["why"] = String(why.prefix(600)) }
+        for (key, value) in more where JSONSerialization.isValidJSONObject([key: value]) { body[key] = value }
         Task { _ = try? await call("/app/page/state", body, timeout: 10) }
     }
 

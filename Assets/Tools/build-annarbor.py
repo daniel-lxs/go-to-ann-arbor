@@ -6,6 +6,7 @@
 #   Web/data/elevation.bin.gz        the ground's heights (ELV2)
 # Sources (downloaded to .lamp/reference/aa/):
 #   osm.json            OpenStreetMap via Overpass (streets, water, parks, parking, landmarks), ODbL
+#   poi/osm_pois.json   OpenStreetMap named shops, amenities, tourism & leisure (nodes, ways, relations), ODbL
 #   sig/osm_signals.json  OpenStreetMap traffic lights, stop & yield signs and crossings (nodes), ODbL
 #   aa_bldg.geojson     City of Ann Arbor Building Footprints (with heights above ground)
 #   aa_trees.geojson    City of Ann Arbor Street Trees
@@ -368,6 +369,7 @@ parking_union = unary_union(parking).intersection(LAND) if parking else Polygon(
 # --- Buildings (City of Ann Arbor footprints) -------------------------------------------------------------------------------
 bj = json.load(open(os.path.join(REF, 'aa_bldg.geojson')))
 KIND = {'Residential': 1, 'Commercial': 2, 'Office': 3, 'Public': 4}
+OWNER_KIND = {'University': 5, 'City': 6, 'County': 6, 'Federal': 6, 'Schools': 6, 'Parks': 6}
 buildings = []
 for f in bj['features']:
     g = f['geometry']
@@ -391,6 +393,8 @@ for f in bj['features']:
     kind = KIND.get(pr.get('Struc_Type'), 1)
     if h < 2.5:
         h = 7 if kind == 1 else 9
+    # who owns it: 5 the University (campus brick & limestone), 6 the city, county, schools and federal government
+    kind = OWNER_KIND.get(pr.get('Owned_By'), kind)
     buildings.append({'geom': geom, 'height': int(round(min(h, 120))), 'kind': kind, 'name': pr.get('Bldg_Name') or ''})
 print(f'{len(buildings)} buildings')
 built_union = unary_union([b['geom'] for b in buildings])
@@ -1194,7 +1198,7 @@ print(f'{len(streetlights) // 4} streetlights')
 
 # --- Traffic controls: OpenStreetMap's traffic lights, stop signs, yield signs and crossings (nodes, via Overpass,
 # sig/osm_signals.json). GEO.controls = { signals: flat [x, z], stops: flat [x, z, kind (0 stop, 1 all-way, 2 yield)],
-# crossings: flat [x, z] }; road-network.js matches each to the intersection and approach it stands at.
+# crossings: flat [x, z, marked (0 no, 1 yes, 2 not said)] }; road-network.js matches each to the intersection and approach it stands at.
 controls = {'signals': [], 'stops': [], 'crossings': []}
 try:
     for e in json.load(open(os.path.join(REF, 'sig/osm_signals.json')))['elements']:
@@ -1208,11 +1212,125 @@ try:
         elif h in ('stop', 'give_way'):
             controls['stops'] += [r1(x), r1(z), 2 if h == 'give_way' else 1 if t.get('stop') == 'all' else 0]
         elif h == 'crossing':
-            controls['crossings'] += [r1(x), r1(z)]
+            # painted (1), plainly not (0), or not said (2)
+            c, m = t.get('crossing'), t.get('crossing:markings')
+            marked = 0 if c == 'unmarked' or m == 'no' else 1 if (m and m != 'no') or c in (
+                'marked', 'zebra', 'traffic_signals', 'uncontrolled') else 2
+            controls['crossings'] += [r1(x), r1(z), marked]
 except FileNotFoundError:
     pass
 print(f"{len(controls['signals']) // 2} traffic lights, {len(controls['stops']) // 3} stop & yield signs, "
-      f"{len(controls['crossings']) // 2} crossings")
+      f"{len(controls['crossings']) // 3} crossings")
+
+# --- Named places: OpenStreetMap's named shops, restaurants, cafes, bars and the like (poi/osm_pois.json, Overpass
+# nwr[shop|amenity|tourism|leisure][name], ODbL), each a sign over its storefront: on the wall of the building it's in
+# (or the nearest, within 18 m) that faces the street. GEO.signs = {names: [...], list: flat [x, z, heading (deg, the
+# wall's outward normal, atan2(nx, nz)), width, height above ground, name index, category]} with categories 0 food,
+# 1 coffee & sweets, 2 bars, 3 shops, 4 services, 5 culture. And the city's building names (Bldg_Name), for the HUD as
+# you pass: GEO.places = {names, list: flat [x, z, radius, name index]}, one entry per building with a real name.
+SIGN_CATS = {
+    'restaurant': 0, 'fast_food': 0, 'food_court': 0, 'cafe': 1, 'ice_cream': 1, 'bar': 2, 'pub': 2, 'biergarten': 2,
+    'nightclub': 2, 'bank': 4, 'pharmacy': 4, 'dentist': 4, 'clinic': 4, 'doctors': 4, 'post_office': 4,
+    'veterinary': 4, 'theatre': 5, 'cinema': 5, 'library': 5, 'arts_centre': 5, 'museum': 5, 'gallery': 5,
+    'hotel': 4, 'fitness_centre': 4,
+}
+sign_names, sign_name_id, signs_out = [], {}, []
+try:
+    pois = json.load(open(os.path.join(REF, 'poi/osm_pois.json')))['elements']
+except FileNotFoundError:
+    pois = []
+bldg_geoms = [b['geom'] for b in buildings]
+bldg_tree = shapely.STRtree(bldg_geoms)
+road_tree = shapely.STRtree(surface)
+taken = {}  # (building, edge) -> [(s0, s1)] along the edge
+for e in pois:
+    t = e.get('tags', {})
+    name = (t.get('name') or '').strip()
+    if not name or len(name) > 34:
+        continue
+    cat = SIGN_CATS.get(t.get('amenity')) if t.get('amenity') else None
+    if cat is None and t.get('tourism') in ('hotel', 'museum', 'gallery'):
+        cat = SIGN_CATS[t['tourism']]
+    if cat is None and t.get('leisure') == 'fitness_centre':
+        cat = 4
+    if cat is None and t.get('shop'):
+        cat = 1 if t['shop'] in ('bakery', 'coffee', 'confectionery', 'chocolate', 'pastry') else \
+            4 if t['shop'] in ('hairdresser', 'beauty', 'dry_cleaning', 'laundry', 'optician', 'tattoo') else 3
+    if cat is None:
+        continue
+    c = e.get('center') or ({'lon': e['lon'], 'lat': e['lat']} if 'lon' in e else None)
+    if not c:
+        continue
+    px, pz = xz(c['lon'], c['lat'])
+    pt = Point(px, pz)
+    near = bldg_tree.query(pt.buffer(18))
+    if not len(near):
+        continue
+    bi = min(near, key=lambda i: bldg_geoms[i].distance(pt))
+    if bldg_geoms[bi].distance(pt) > 18:
+        continue
+    b = buildings[bi]
+    if b['kind'] == 1 and b['height'] < 6:
+        continue  # a house: a home business, no storefront
+    best = None
+    for poly in parts(b['geom']):
+        ring = list(orient(poly, 1.0).exterior.coords)
+        for k in range(len(ring) - 1):
+            (x0, z0), (x1, z1) = ring[k], ring[k + 1]
+            L = math.hypot(x1 - x0, z1 - z0)
+            if L < 3.2:
+                continue
+            ux, uz = (x1 - x0) / L, (z1 - z0) / L
+            nx, nz = uz, -ux
+            mx, mz = (x0 + x1) / 2, (z0 + z1) / 2
+            if poly.contains(Point(mx + nx * 0.5, mz + nz * 0.5)):
+                nx, nz = -nx, -nz
+            probe = Point(mx + nx * 6, mz + nz * 6)
+            ri = road_tree.query_nearest(probe)
+            dr = surface[ri[0]].distance(probe) if len(ri) else 99
+            if dr > 22:
+                continue
+            # along the edge, as near the place's point as fits
+            sproj = max(0.0, min(L, (px - x0) * ux + (pz - z0) * uz))
+            dp = math.hypot(x0 + ux * sproj - px, z0 + uz * sproj - pz)
+            score = dr + 0.35 * dp
+            if best is None or score < best[0]:
+                best = (score, k, x0, z0, ux, uz, nx, nz, L, sproj)
+    if best is None:
+        continue
+    _, k, x0, z0, ux, uz, nx, nz, L, sproj = best
+    w = min(L - 0.6, max(2.4, 0.42 * len(name) + 0.8), 7.5)
+    if w < 2.2:
+        continue
+    s0 = max(0.3, min(L - 0.3 - w, sproj - w / 2))
+    used = taken.setdefault((bi, k), [])
+    for a0, a1 in sorted(used):
+        if s0 < a1 + 0.4 and s0 + w > a0 - 0.4:
+            s0 = a1 + 0.4
+    if s0 + w > L - 0.3:
+        continue
+    used.append((s0, s0 + w))
+    sm = s0 + w / 2
+    if name not in sign_name_id:
+        sign_name_id[name] = len(sign_names)
+        sign_names.append(name)
+    y = 3.4 if b['height'] >= 5 else max(2.4, b['height'] - 0.9)
+    signs_out += [r1(x0 + ux * sm + nx * 0.18), r1(z0 + uz * sm + nz * 0.18), round(math.degrees(math.atan2(nx, nz))),
+                  r1(w), r1(y), sign_name_id[name], cat]
+print(f'{len(signs_out) // 7} storefront signs')
+
+place_names, place_name_id, places_out = [], {}, []
+for b in buildings:
+    n = b['name'].strip()
+    if not n or n[0].isdigit() or n in ('Worship', 'Garage', 'Shed') or len(n) > 48:
+        continue
+    if n not in place_name_id:
+        place_name_id[n] = len(place_names)
+        place_names.append(n)
+    c = b['geom'].representative_point()
+    minx, minz, maxx, maxz = b['geom'].bounds
+    places_out += [r1(c.x), r1(c.y), r1(max(maxx - minx, maxz - minz) / 2), place_name_id[n]]
+print(f'{len(places_out) // 4} named buildings ({len(place_names)} names)')
 
 GEO = {
     'version': 1,
@@ -1243,6 +1361,8 @@ GEO = {
     'trails': trails,
     'streetlights': streetlights,
     'controls': controls,
+    'signs': {'names': sign_names, 'list': signs_out},
+    'places': {'names': place_names, 'list': places_out},
     'playgrounds': playgrounds,
     'lawns': lawns,
     'driveways': driveways,

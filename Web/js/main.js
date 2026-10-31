@@ -1,5 +1,5 @@
 // Lamp's game runtime first: in Lamp's preview it sets the clock and random numbers before anything reads them.
-import { game, hot, save, load, input, onInput, label, glyph, pendingRestore, BUTTON, STICK, TRIGGER } from '../lamp-game.js';
+import { game, hot, save, load, log, input, onInput, label, glyph, pendingRestore, BUTTON, STICK, TRIGGER } from '../lamp-game.js';
 import * as THREE from 'three/webgpu';
 import { pass, mrt, output, normalView, positionView, metalness, roughness, vec2, vec3, smoothstep } from 'three/tsl';
 import { ssr } from 'three/addons/tsl/display/SSRNode.js';
@@ -16,6 +16,7 @@ import { buildStreetDetails } from './street-details.js';
 import { createTrafficSystem, createHighwayTraffic } from './traffic.js';
 import { buildRoadPaint } from './road-paint.js';
 import { buildTrafficControls } from './traffic-controls.js';
+import { buildShopSigns } from './shop-signs.js';
 import { ThirdPersonControllerManager } from './controllers.js';
 import { TouchControls } from './touch-controls.js';
 import { GamepadControls } from './gamepad-controls.js';
@@ -25,6 +26,7 @@ import { NYCMapSystem } from './nyc-map.js';
 import { setupSceneCulling, updateSceneCulling, cullAlso, showShadowStandIns } from './scene-culling.js';
 import { loadTerrain, setOnTerrain, groundHeight } from './terrain.js';
 import { CityAudioSystem } from './audio-system.js';
+import { fetchWeather, createPrecipitation } from './weather.js';
 
 // Application setup, shader warm-up and frame loop.
 //
@@ -122,6 +124,8 @@ async function initApp() {
   }, { inputs: [scene, renderer] });
   scene.add(...lighting.own);
   const lightingSystem = lighting.made;
+  const precipitation = createPrecipitation(); // rain & snow (weather.js)
+  scene.add(precipitation.mesh);
   markInit('lighting');
 
   // Lamp: the ground's real heights, which everything below is set on (terrain.js)
@@ -205,7 +209,9 @@ async function initApp() {
   }), { inputs: [heights, traffic] });
   markInit('roadPaint');
   // Traffic lights and stop & yield signs where the road network put them (traffic-controls.js)
-  const controlsPart = live.keep('trafficControls', () => cityPart((g) => buildTrafficControls(g, traffic.made.network, details.made.signalClock), { cull: setupSceneCulling }), { inputs: [heights, traffic, details] });
+  const controlsPart = live.keep('trafficControls', () => cityPart((g) => buildTrafficControls(g, traffic.made.network), { cull: setupSceneCulling }), { inputs: [heights, traffic, details] });
+  // Signs over the real shops, restaurants and cafes (shop-signs.js, from OpenStreetMap)
+  const signsPart = live.keep('shopSigns', () => cityPart((g) => buildShopSigns(g), { cull: setupSceneCulling }), { inputs: [heights] });
   await showLoadingStage('Laying the railroads...');
   // The tracks and the trains on them, stood on the ground where they're built (railways.js)
   const railPart = live.keep('railways', () => cityPart((g) => buildRailways(g)), { inputs: [heights] });
@@ -214,7 +220,7 @@ async function initApp() {
   const parkedPart = live.keep('parkedCars', () => cityPart((g) => buildParkedCars(g)), { inputs: [heights] });
   const parkedCars = parkedPart.made;
   allColliders.push(...parkedCars.colliders);
-  const parts = [grid, boroughPart, landmarks, blocks, details, traffic, highway, roadPaint, controlsPart, railPart, parkedPart];
+  const parts = [grid, boroughPart, landmarks, blocks, details, traffic, highway, roadPaint, controlsPart, signsPart, railPart, parkedPart];
   for (const part of parts) {
     scene.add(part.group);
     cullAlso(part.culled);
@@ -499,6 +505,8 @@ async function initApp() {
 
   function selectTime(timeId) {
     lightingSystem.applyPreset(timeId, timeId === 'now');
+    // rain or snow falls only under the real sky
+    precipitation.set(timeId === 'now' ? lightingSystem.weather : null);
     colorGrade.applyPreset(lightingSystem.lookId);
     timeButtons.forEach((btn) => {
       btn.classList.toggle('active', btn.getAttribute('data-time') === timeId);
@@ -514,7 +522,10 @@ async function initApp() {
     const at = (t) => (t ? new Date(t).toLocaleTimeString('en-US', { timeZone: 'America/Detroit', hour: 'numeric', minute: '2-digit' }) : '—');
     btn.title = `Now in Ann Arbor · sunrise ${at(rise)}, sunset ${at(set)}`;
     const label = btn.querySelector('.seg-label');
-    if (label) label.textContent = `Now · ${at(Date.now())}`;
+    const w = lightingSystem.weather;
+    const temp = w && w.tempF != null ? ` · ${w.tempF}°` : '';
+    if (label) label.textContent = `Now · ${at(Date.now())}${temp}`;
+    if (w && w.live) btn.title += ` · ${w.text}${w.tempF != null ? `, ${w.tempF}°F` : ''}`;
   }
 
   // Popovers (native [popover]: light dismiss & Esc for free) open against the control that toggles them: data-anchor
@@ -753,11 +764,18 @@ async function initApp() {
     placeModeIndicator();
   });
   selectCamera('chase', true);
+  // Lamp: Ann Arbor's weather now (weather.js), on the "Now" sky and falling around the camera; asked for again every
+  // 15 minutes of play
+  let weatherAskedAt = -Infinity;
+  const askWeather = (elapsed) => {
+    weatherAskedAt = elapsed;
+    fetchWeather().then((w) => {
+      lightingSystem.weather = w;
+      log(`[weather] ${w.live ? 'Ann Arbor now' : 'offline, so'}: ${w.text}${w.tempF != null ? `, ${w.tempF}°F` : ''}`);
+      if (lightingSystem.activePresetId === 'now') selectTime('now');
+    });
+  };
   selectTime('now');
-  if (!window.LampNative?.available) { // PREVIEW-TEST
-    const e = traffic.made.network.edges.find((q) => q.to.signal && !q.to.shape && q.lanes.length > 1 && Math.hypot(q.to.x, q.to.z) < 400);
-    if (e) {  teleportTo(e.sx + e.dx * (e.len - 14) + e.rx * e.lanes[0], e.sz + e.dz * (e.len - 14) + e.rz * e.lanes[0], Math.atan2(e.dx, e.dz)); }
-  } // PREVIEW-TEST
   // the web fonts change the buttons' widths once they arrive
   if (document.fonts) document.fonts.ready.then(placeModeIndicator);
   markInit('ui');
@@ -866,7 +884,7 @@ async function initApp() {
     controllerManager.update(dt, elapsed);
     cameraSystem.update(dt, elapsed);
     streetDetails.signalClock.value = elapsed;
-    if (!window.LampNative?.available && Math.floor(elapsed / 5) !== Math.floor((elapsed - dt) / 5)) console.info('[test] clock', elapsed.toFixed(1), streetDetails.signalClock === controlsPart.made.clock, controlsPart.made.clock?.value); // PREVIEW-TEST
+    controlsPart.made.update(elapsed);
     trafficSystem.update(
       dt,
       elapsed,
@@ -892,6 +910,8 @@ async function initApp() {
       nowCheckedAt = elapsed;
       selectTime('now');
     }
+    if (elapsed - weatherAskedAt > 900) askWeather(elapsed);
+    precipitation.update(cameraSystem.camera, elapsed);
     audioSystem.update(dt, elapsed, cameraSystem.camera, lightingSystem.lookId === 'midnight');
     if (warmedUp) updateSceneCulling(cameraSystem.camera.position); // the warm-up frame draws every chunk
     // Traffic collisions can move the player after controller updates; finalize moving hierarchies here.

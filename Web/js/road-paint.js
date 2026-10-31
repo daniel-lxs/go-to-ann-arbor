@@ -1,11 +1,13 @@
 import * as THREE from 'three/webgpu';
 import { CROSSWALK } from './road-network.js';
+import { GEO } from './nyc-geodata.js';
 import { createRoadPaintMaterial } from './tsl-materials.js';
 
 // Road markings generated from the drivable road network (js/road-network.js), so the paint matches where traffic
 // actually drives and stops: dashed lane lines, double yellow centre lines on two-way roads (Lamp: not on residential
 // streets, as in Ann Arbor), a centre turn lane's yellow lines, a one-way's yellow left edge, stop bars at the stop
-// lines, continental crosswalks across every intersection approach and the city's painted bike lanes (OpenStreetMap).
+// lines, continental crosswalks where OpenStreetMap maps a painted crossing (and at traffic lights where it says nothing),
+// and the city's painted bike lanes (OpenStreetMap).
 
 const WHITE = new THREE.Color(0xe6e2d6);
 const YELLOW = new THREE.Color(0xe8ad22);
@@ -65,6 +67,37 @@ function buildRoadPaint(scene, network) {
       for (const offset of [o - 0.12, o + 0.12]) if (!network.isRoadClear(...at(e, s, offset), 0.15)) return false;
     }
     return true;
+  };
+
+  // Lamp: OpenStreetMap's crossings ([x, z, marked: 0 no, 1 yes, 2 not said]) in 20 m cells
+  const CELL = 20;
+  const crossingCells = new Map();
+  {
+    const list = (GEO.controls && GEO.controls.crossings) || [];
+    for (let i = 0; i + 2 < list.length; i += 3) {
+      const key = Math.floor(list[i] / CELL) + ',' + Math.floor(list[i + 1] / CELL);
+      if (!crossingCells.has(key)) crossingCells.set(key, []);
+      crossingCells.get(key).push({ x: list[i], z: list[i + 1], marked: list[i + 2], used: false });
+    }
+  }
+  const crossingsNear = (x, z, r) => {
+    const out = [];
+    for (let i = Math.floor((x - r) / CELL); i <= Math.floor((x + r) / CELL); i++) {
+      for (let j = Math.floor((z - r) / CELL); j <= Math.floor((z + r) / CELL); j++) {
+        for (const c of crossingCells.get(i + ',' + j) || []) if (Math.hypot(c.x - x, c.z - z) < r) out.push(c);
+      }
+    }
+    return out;
+  };
+  // A crosswalk at the end of e by node: where a painted crossing is mapped there, not where an unpainted one is,
+  // and where nothing is said, only at traffic lights
+  const paintedEnd = (e, s, node) => {
+    const [x, z] = at(e, s, 0);
+    const near = crossingsNear(x, z, e.half + 5);
+    for (const c of near) c.used = true;
+    if (near.some((c) => c.marked === 1)) return true;
+    if (near.some((c) => c.marked === 0)) return false;
+    return !!node.signal;
   };
 
   // The one or two directed edges of each road between a pair of intersections
@@ -132,13 +165,31 @@ function buildRoadPaint(scene, network) {
     }
 
     // Continental crosswalks curb to curb, between the stop lines and the intersections at both ends
-    if (!e.from.shape) across(e, -CROSSWALK / 2, -e.half, e.half, CROSSWALK - 0.3, WHITE, 1.2, 0.5);
-    if (!e.to.shape) across(e, e.len + CROSSWALK / 2, -e.half, e.half, CROSSWALK - 0.3, WHITE, 1.2, 0.5);
+    if (!e.from.shape && paintedEnd(e, -CROSSWALK / 2, e.from)) {
+      across(e, -CROSSWALK / 2, -e.half, e.half, CROSSWALK - 0.3, WHITE, 1.2, 0.5);
+    }
+    if (!e.to.shape && paintedEnd(e, e.len + CROSSWALK / 2, e.to)) {
+      across(e, e.len + CROSSWALK / 2, -e.half, e.half, CROSSWALK - 0.3, WHITE, 1.2, 0.5);
+    }
 
     for (const [end, node] of [[0, e.from], [1, e.to]]) {
       if (!node.shape) continue;
       if (!bends.has(node.id)) bends.set(node.id, []);
       bends.get(node.id).push({ e, end, lines: lines.slice(firstLine) });
+    }
+  }
+
+  // Lamp: painted crossings mid-block (by a school, a park path, a campus walk), wherever one wasn't an intersection's
+  for (const [e] of roads.values()) {
+    if (e.len < CROSSWALK * 2 + 4) continue;
+    const [mx, mz] = at(e, e.len / 2, 0);
+    for (const c of crossingsNear(mx, mz, e.len / 2 + e.half)) {
+      if (c.used || c.marked !== 1) continue;
+      const s = (c.x - e.sx) * e.dx + (c.z - e.sz) * e.dz;
+      const o = (c.x - e.sx) * e.rx + (c.z - e.sz) * e.rz;
+      if (s < CROSSWALK + 2 || s > e.len - CROSSWALK - 2 || Math.abs(o) > e.half + 1) continue;
+      c.used = true;
+      across(e, s, -e.half, e.half, CROSSWALK - 0.3, WHITE, 1.2, 0.5);
     }
   }
 

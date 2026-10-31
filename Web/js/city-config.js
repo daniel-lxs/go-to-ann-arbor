@@ -258,11 +258,44 @@ const TELEPORT_LOCATIONS = {
   theater: arrival(lm('theater').x, lm('theater').z, lm('theater')),
   kerrytown: arrival(lm('kerrytown').x, lm('kerrytown').z, lm('kerrytown')),
   arb: arrival(lm('arb').x, lm('arb').z, lm('arb')),
-  gallup: arrival(lm('gallup').x, lm('gallup').z, lm('gallup'))
+  gallup: arrival(lm('gallup').x, lm('gallup').z, lm('gallup')),
+  hill: arrival(lm('hill').x, lm('hill').z, lm('hill')),
+  union: arrival(lm('union').x, lm('union').z, lm('union')),
+  umma: arrival(lm('umma').x, lm('umma').z, lm('umma')),
+  library: arrival(lm('library').x, lm('library').z, lm('library')),
+  crisler: arrival(lm('crisler').x, lm('crisler').z, lm('crisler')),
+  amtrak: arrival(lm('amtrak').x, lm('amtrak').z, lm('amtrak'))
 };
 
+// The city's building names (Bldg_Name, GEO.places): each named building's centre and half its size, in 100 m cells
+const PLACE_CELL = 100;
+const placeCells = new Map();
+{
+  const { names = [], list = [] } = GEO.places || {};
+  for (let i = 0; i < list.length; i += 4) {
+    const key = Math.floor(list[i] / PLACE_CELL) + ',' + Math.floor(list[i + 1] / PLACE_CELL);
+    if (!placeCells.has(key)) placeCells.set(key, []);
+    placeCells.get(key).push({ x: list[i], z: list[i + 1], r: list[i + 2], name: names[list[i + 3]] });
+  }
+}
+// The named building you're beside (within 14 m of its edge, roughly), or null
+function buildingNameAt(x, z) {
+  const cx = Math.floor(x / PLACE_CELL), cz = Math.floor(z / PLACE_CELL);
+  let best = null, bestD = Infinity;
+  for (let i = -1; i <= 1; i++) {
+    for (let j = -1; j <= 1; j++) {
+      for (const p of placeCells.get(cx + i + ',' + (cz + j)) || []) {
+        const d = Math.hypot(x - p.x, z - p.z) - p.r;
+        if (d < 14 && d < bestD) { best = p; bestD = d; }
+      }
+    }
+  }
+  return best ? best.name : null;
+}
+
 /**
- * The street, crossing or place at any world (x, z): a landmark close by, else the nearest two named roads
+ * The street, crossing or place at any world (x, z): a landmark close by, else the named building you're beside with
+ * its street, else the nearest two named roads
  */
 function getLocationLabel(x, z) {
   for (const l of NYC_LANDMARKS) {
@@ -270,6 +303,11 @@ function getLocationLabel(x, z) {
       const near = nearestRoads(x, z, 120);
       return `${l.name}${near.length ? ` · ${near[0].road.name}` : ''}`;
     }
+  }
+  const building = buildingNameAt(x, z);
+  if (building) {
+    const near = nearestRoads(x, z, 120);
+    return `${building}${near.length ? ` · ${near[0].road.name}` : ''}`;
   }
   const b = blockAt(x, z);
   if (b && b.park > 0.6 && b.parkName) return b.parkName;

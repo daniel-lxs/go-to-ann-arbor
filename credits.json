@@ -7,6 +7,7 @@
       "url" : "https://github.com/lampdotdev/newyork"
     },
     {
+      "commit" : "98afdb899d92fe411f05e405a53c98eb45955f3a",
       "name" : "Go To Ann Arbor",
       "url" : "https://github.com/mrubens/go-to-ann-arbor",
       "wish" : "3DF4E397-D414-4837-8390-3F7946A6D12D"
@@ -64,6 +65,12 @@
       "author" : "City of Ann Arbor",
       "name" : "Urban Tree Canopy",
       "url" : "https://a2maps.a2gov.org/a2arcgis/rest/services/NaturalFeatures/MapServer/10"
+    },
+    {
+      "author" : "National Weather Service (NOAA)",
+      "license" : "LicenseRef-US-Government-Public-Domain",
+      "name" : "Current weather at Ann Arbor Municipal Airport (KARB)",
+      "url" : "https://www.weather.gov/documentation/services-web-api"
     }
   ]
 }

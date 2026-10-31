@@ -23,6 +23,7 @@ import { SunLightNode } from 'three/addons/lights/SunLightNode.js';
 import { cityUniforms } from './tsl-materials.js';
 import { groundHeight } from './terrain.js';
 import { hot } from '../lamp-game.js';
+import { weatherPreset } from './weather.js';
 
 // Lamp: the lighting systems made, kept through a change of this file (lamp-game.js, "Changes while it's played"), so
 // a new TIME_PRESETS is put on the sky at once (the end of this file).
@@ -325,7 +326,9 @@ class LightingSystem {
   }
 
   applyPreset(presetId, force = false) {
-    const p = presetId === 'now' ? presetForSun(sunPosition(Date.now())) : TIME_PRESETS[presetId] || TIME_PRESETS.golden;
+    // Lamp: "Now" is Ann Arbor's real sky, with its weather (weather.js) on it
+    const p = presetId === 'now' ? weatherPreset(presetForSun(sunPosition(Date.now())), this.weather)
+      : TIME_PRESETS[presetId] || TIME_PRESETS.golden;
     if (!force && this.activePresetId === p.id && this.envRenderTarget !== null) {
       return;
     }

@@ -1,7 +1,7 @@
 {
   "background": "blue",
   "game": true,
-  "subject": "Burton Memorial Tower, the University of Michigan's tall stone clock tower, with a maize block M banner",
-  "symbol": "building.columns.fill",
-  "tint": "#FFCB05"
+  "subject": "a black compact SUV like a Subaru Forester, with roof rails, driving on an Ann Arbor street lined with orange autumn maples",
+  "symbol": "car.side.fill",
+  "tint": "#1C1F24"
 }
