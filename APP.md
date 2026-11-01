@@ -6,7 +6,7 @@ its speed at the bottom right, and time of day, Teleport, Map and sound at the t
 
 # Ann Arbor
 
-Slop Ann Arbor: Mr.doob's Slop New York (MIT, `Web/LICENSE-slop-newyork`, commit 13dd142 in credits.json) moved from
+Slop Ann Arbor: Mr.doob's Slop New York (MIT, `Web/LICENSE-slop-newyork`, commit e35c06c in credits.json; its changes since 13dd142 merged in: road paint in culled chunks, crowd culling and a vertex-shaded far LOD for people, cell-by-cell tree LOD, fire escapes, storefronts and entrances, building collision, gamepad and car wheel material) moved from
 Manhattan to Ann Arbor. The city inside the I-94/US-23/M-14 ring, about 7 by 6 km, with every street where it really
 is, every building from the city's surveyed footprints and heights, the Huron River, parks, the Diag, street trees from
 the city's inventory, traffic and people; Michigan Stadium ("the Big House") modelled by hand.
@@ -27,6 +27,12 @@ the city's inventory, traffic and people; Michigan Stadium ("the Big House") mod
 - The guide to the controls and the keys on the HUD's buttons show what the player is holding (`input()`, `label()`
   and `glyph()` from lamp-game.js, in `controlHints`, `renderControlHints` and `relabelKeys` in main.js).
 - The game remembers where the player was between launches (`save('player')`, version 2 since the move from New York).
+- **Badge and map**: the top left says "Go To Ann Arbor" and "GitHub ↗", which opens https://github.com/mrubens/go-to-ann-arbor
+  (through `openRepo` in Sources/Native.swift in the app; a plain link elsewhere). Mr.doob's credit, "Made from
+  Mr.doob's Slop New York", is under the full map's title. The game starts with no GPS route; Teleport sets one and
+  the full map's "Clear route" button clears it (nyc-map.js).
+- **Churches**: a sizeable building on a religious parcel is drawn by churches.js (gable roof, bell tower and spire
+  with a cross, lancet and rose windows, a door), 55 of them.
 
 ## Code
 
@@ -130,7 +136,7 @@ feed changes (it runs to Jan 2027). Curb parking lanes (`curb-parking.js`): the 
 parking:both/left/right (untagged: Main, Liberty, Washington, State and S University downtown only) into link field 12
 (bits 1 right, 2 left as drawn) and widens the street 2.4 m per side; traffic lanes stay inside them, road paint draws
 each lane's line and its 6.5 m stall marks, and parked cars stand in those stalls.
-Storefronts: the ground floor (storey 0 from the building's ground) has the same windows as the floors above (the person wanted it to match them), except about one bay in four (`doorBay` in `facadeCell`), which is a shop door glazed to the sidewalk: a plain, softly lit room seen through it by interior mapping (`evaluateShopInterior` in tsl-materials.js; no colored shelves of goods, which the person found too strong), and on pre-war walls a double door frame (stiles, kick plate, handles). No awnings (the person disliked them): building-details.js makes only the odd scaffold shed.
+Storefronts (upstream's `createStorefront` in tsl-materials.js): only on buildings marked `storefronts` in buildings.js (a shop building in the survey, or a shop or mixed-use parcel; never the University's, houses or churches), on their front walls (`WALL_KINDS.shop` in building-footprints.js); muted glass and frames, no painted sign names (`SIGN_NAMES = false`: the real names come from shop-signs.js). Other fronts get upstream's building entrances, and their ground floors keep the same windows as the floors above (the person wanted them to match). No awnings (the person disliked them): building-details.js makes only the odd scaffold shed.
 A block is paved over (no lawn) only where its buildings and the city's paving map leave under a fifth of it
 unpaved (downtown's Main and State Street blocks, strip malls, industry); campus and the neighborhoods keep grass.
 A park's or golf course's slab (an odd-shaped lawn block) is only its sidewalk ring, so the lawn shows inside.

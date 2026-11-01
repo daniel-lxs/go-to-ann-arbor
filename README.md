@@ -10,9 +10,9 @@
 
 Each opens Lamp with a copy of Go To Ann Arbor and that change, ready to send:
 
-- [Make it rain and snow around town](https://lamp.dev/?repo=https://github.com/mrubens/go-to-ann-arbor&from=readme&ask=Make%20it%20rain%20and%20snow%20around%20town)
-- [Let me drop a pin and return](https://lamp.dev/?repo=https://github.com/mrubens/go-to-ann-arbor&from=readme&ask=Let%20me%20drop%20a%20pin%20and%20return)
-- [Add a Football Saturday crowd at the Big House](https://lamp.dev/?repo=https://github.com/mrubens/go-to-ann-arbor&from=readme&ask=Add%20a%20Football%20Saturday%20crowd%20at%20the%20Big%20House)
+- [Add snow and fall leaves by season](https://lamp.dev/?repo=https://github.com/mrubens/go-to-ann-arbor&from=readme&ask=Add%20snow%20and%20fall%20leaves%20by%20season)
+- [Let me drop pins on favorite spots](https://lamp.dev/?repo=https://github.com/mrubens/go-to-ann-arbor&from=readme&ask=Let%20me%20drop%20pins%20on%20favorite%20spots)
+- [Make game days fill the Big House with fans](https://lamp.dev/?repo=https://github.com/mrubens/go-to-ann-arbor&from=readme&ask=Make%20game%20days%20fill%20the%20Big%20House%20with%20fans)
 
 ## Open it in Lamp
 
@@ -24,7 +24,7 @@ Lamp builds this kind of app: it needs Xcode and signing on your Mac, which Lamp
 
 ## Credits
 
-- Based on [Slop New York](https://github.com/mrdoob/slop-newyork) by Mr.doob, MIT, at commit `13dd142b480b` (license: `LICENSE-slop-newyork`)
+- Based on [Slop New York](https://github.com/mrdoob/slop-newyork) by Mr.doob, MIT, at commit `e35c06c0d896` (license: `LICENSE-slop-newyork`)
 - Uses [Map data](https://www.openstreetmap.org/copyright) by OpenStreetMap contributors, ODbL-1.0
 - Uses [NYC Open Data](https://opendata.cityofnewyork.us/overview/#termsofuse) by City of New York, LicenseRef-NYC-Open-Data
 - Uses [Terrain Tiles](https://registry.opendata.aws/terrain-tiles/) by Mapzen, USGS, LicenseRef-USGS-Public-Domain
