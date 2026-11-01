@@ -27,7 +27,10 @@ the city's inventory, traffic and people; Michigan Stadium ("the Big House") mod
   (`knockDown`, `throwRider` in controllers.js), then stands up; a 'thud' cue and rumble go with each hit.
   A car hitting a tree, pole or sign post hard enough knocks it over (knockdowns.js): the speed it takes grows with
   a tree's trunk and falls with the car's mass; it tips about its foot the way the car went, lands with a thud or
-  crash, stays down and stops being solid, and the car loses speed by how stout it was.
+  crash, stays down and stops being solid, and the car loses speed by how stout it was. A felled streetlight goes dark (its
+  light sites get `out`, its pool is hidden); scene-culling.js notes where each split-up instance went (`movedTo`,
+  `shadowCopy`) so a knocked-over piece moves where it's drawn (a chunk never inherits
+  its source's notes). The parks' globe lampposts (`parkLampMeshes` from city-grid.js) are solid and fall the same way.
 - **The city**: time of day from the buttons at the top, Teleport (Main Street, the Diag, Burton Tower, the Michigan
   Theater, Kerrytown, the Big House, the Arb, Gallup Park), M the full map (true north up), H hides the HUD, N sound.
 - **A controller** works too (`gamepad-controls.js`): left stick move or steer, right stick look, RT and LT gas and
@@ -79,6 +82,14 @@ the city's inventory, traffic and people; Michigan Stadium ("the Big House") mod
     `buildings.js`, which lifts their colliders, details and billboards with them) and landmarks under their lot
     (`groundUnder`), and the facade shader counts storeys from there (the `ground` attribute of `createFacadeBoxes` and
     `createBuildingFootprints`).
+    The cutting is the slowest part of a start, so it's done once and saved: the height maths and the cut itself are
+    plain functions in `ground-core.js`, run on several cores by `drape-worker.js` (each long triangle halved to 200 m
+    first, so the one road quad over the town is shared out too); the draped layers, already in 800 m tiles, are saved
+    in IndexedDB (a database per city part, `ground-layers-<part>`), keyed by a fingerprint of the heights, river,
+    bridges, the cutting code and each layer's own geometry, and read back on later starts. setOnTerrain answers a
+    promise when it has layers to cut; main.js awaits it in the grid and street-details parts. Ground layers are cut at
+    5 cm, the road surface too; the road markings sit 6 cm over it (`road-paint.js`). The preview has no lasting
+    database, so it always cuts. Start times (the open game, cold → saved): street level ~11.5 s → 3.7 s → 2.7 s.
     Cars, bikes, people, the helicopter's skids and the cameras follow it each frame; cars tilt with the slope
     (`groundTilt`). Something new that stands on the street: build it at y = 0 as before, and add
     `groundHeight(x, z)` where it's placed (or leave it in a group setOnTerrain sets).
