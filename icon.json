@@ -1,7 +1,7 @@
 {
-  "background": "blue",
-  "game": true,
-  "subject": "a glossy black Subaru Forester SUV",
-  "symbol": "car.side.fill",
-  "tint": "#1C1F24"
+  "background" : "green",
+  "game" : true,
+  "subject" : "a maize-yellow car on a riverside road beside a winding blue river, framed by autumn trees in red, orange and gold, seen at a three-quarter angle",
+  "symbol" : "car.fill",
+  "tint" : "#FFCB05"
 }

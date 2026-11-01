@@ -6,13 +6,15 @@
 
 <p align="center"><a href="https://mrubens.github.io/go-to-ann-arbor/"><img src=".github/play-in-browser.svg" width="220" height="48" alt="Play in your browser"></a>&nbsp;&nbsp;<a href="https://lamp.dev/?repo=https://github.com/mrubens/go-to-ann-arbor&amp;from=readme"><img src=".github/open-in-lamp.svg" width="164" height="48" alt="Open in Lamp"></a></p>
 
+<p align="center"><img src=".github/preview.png" width="720" alt="Go To Ann Arbor"></p>
+
 ## Ideas to try
 
 Each opens Lamp with a copy of Go To Ann Arbor and that change, ready to send:
 
-- [Add rain and snow for Michigan winters](https://lamp.dev/?repo=https://github.com/mrubens/go-to-ann-arbor&from=readme&ask=Add%20rain%20and%20snow%20for%20Michigan%20winters)
-- [Let me honk the horn in traffic](https://lamp.dev/?repo=https://github.com/mrubens/go-to-ann-arbor&from=readme&ask=Let%20me%20honk%20the%20horn%20in%20traffic)
-- [Show a Big House game day crowd](https://lamp.dev/?repo=https://github.com/mrubens/go-to-ann-arbor&from=readme&ask=Show%20a%20Big%20House%20game%20day%20crowd)
+- [Add snow and fall colors by season](https://lamp.dev/?repo=https://github.com/mrubens/go-to-ann-arbor&from=readme&ask=Add%20snow%20and%20fall%20colors%20by%20season)
+- [Let me save favorite spots to revisit](https://lamp.dev/?repo=https://github.com/mrubens/go-to-ann-arbor&from=readme&ask=Let%20me%20save%20favorite%20spots%20to%20revisit)
+- [Give me a Big House game day crowd](https://lamp.dev/?repo=https://github.com/mrubens/go-to-ann-arbor&from=readme&ask=Give%20me%20a%20Big%20House%20game%20day%20crowd)
 
 ## Open it in Lamp
 

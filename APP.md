@@ -11,9 +11,12 @@ Manhattan to Ann Arbor. The city inside the I-94/US-23/M-14 ring, about 7 by 6 k
 is, every building from the city's surveyed footprints and heights, the Huron River, parks, the Diag, street trees from
 the city's inventory, traffic and people; Michigan Stadium ("the Big House") modelled by hand.
 
-- **Getting around**: 1 walk, 2 drive your own black compact SUV (a Subaru Forester look, Michigan "GO BLU" plates; Ann Arbor has few taxis), 3 cycle, 4 fly a sightseeing helicopter, 5 paddle a kayak on the Huron (its current follows the river's real flow, below). F gets out of a car and into the nearest one, parked or moving (the moving one's driver is left behind; `enterOrExit` in controllers.js), but not above about 9 mph ("Slow down to get out"). Each car kind drives its own way (`CAR_HANDLING` in controllers.js: mass, top speed, pickup, grip, steering, body roll); traffic and parking include a low sports coupe (`BODY_SPECS.sports` in cars.js), the quickest to drive. Parked cars keep their lamps dark. On the bike, the map and minimap show bike lanes solid, shared lanes dashed and paved paths thin (city-map.js). W A S D or the
-  arrows, Space or E up and Q or C down in the helicopter, B horn. Dragging orbits the camera. The player starts on
-  S Main St near Liberty. The helicopter lands wherever its skids come down: the ground, Michigan Stadium's field
+- **Getting around**: 1 walk, 2 drive your own black compact SUV (a Subaru Forester look, Michigan "GO BLU" plates; Ann Arbor has few taxis), 3 cycle, 4 fly a sightseeing helicopter, 5 paddle a kayak on the Huron (its current follows the river's real flow, below, carries it and turns it where the bow and stern feel different currents; only a blade in the water drives it, each stroke a surge, where a blade goes in and out the water's own surface ripples in rings, and a V wake runs off the bow, both tilting the water's shading, no overlays (`waterDisturb` in tsl-materials.js, set by `updateKayak`, `kayakRipple`, `updateRipples` in controllers.js); the HUD shows its speed over the bed). F gets out of a car and into the nearest one, parked or moving (the moving one's driver is left behind; `enterOrExit` in controllers.js), but not above about 9 mph ("Slow down to get out"). Each car kind drives its own way (`CAR_HANDLING` in controllers.js: mass, top speed, pickup, grip, steering, body roll); traffic and parking include a low sports coupe (`BODY_SPECS.sports` in cars.js), the quickest to drive. Parked cars keep their lamps dark. On the bike, the map and minimap show bike lanes solid, shared lanes dashed and paved paths thin (city-map.js). W A S D or the
+  arrows, Space or E up and Q or C down in the helicopter, B horn. Dragging orbits the camera. Each way of getting around starts
+  at its own view (`SCENIC_STARTS` in main.js): walking on the Diag facing Burton Tower, the car on Main St at
+  William (a first play starts there), the bike in South University's bike lane, the helicopter high south of the
+  stadium facing downtown, the kayak on the Huron by the Medical Center. 1 to 5 (`travelBy`) take the player there,
+  unless that vehicle is within 40 m, when they just take it. The helicopter lands wherever its skids come down: the ground, Michigan Stadium's field
   and stands (it flies into the bowl; `helicopterFloor` in `controllers.js` uses `bowlSurface`), and any roof it
   was above — a house's own pitched roofs (houses.js gives the house's collider `roofs`, each a plane set), other
   buildings' flat tops. A roof it rests on doesn't push it sideways; one above it is still a wall.
@@ -88,7 +91,14 @@ the city's inventory, traffic and people; Michigan Stadium ("the Big House") mod
     in IndexedDB (a database per city part, `ground-layers-<part>`), keyed by a fingerprint of the heights, river,
     bridges, the cutting code and each layer's own geometry, and read back on later starts. setOnTerrain answers a
     promise when it has layers to cut; main.js awaits it in the grid and street-details parts. Ground layers are cut at
-    5 cm, the road surface too; the road markings sit 6 cm over it (`road-paint.js`). The preview has no lasting
+    4 cm (the road surface at 5 cm; the road markings sit 6 cm over it, `road-paint.js`). A layer stacked over another
+    must sit more than that above it, or the one under shows through on slopes as long wedges: the lawns (LAWN_Y 0.28)
+    are 6 cm over the sidewalk slab (SW_TOP 0.22) that fills each block under them. Driveways and front walks, a few mm over the
+    lawn, are drawn in front of it with `drawOver` (terrain.js: each vertex pulled along its line of sight, so only its
+    depth changes) instead of a real lift. Driveway aprons (small, four
+    corners) are always concrete, so the sidewalk never shows a blacktop patch. Pavings with holes (the walk webs of the Diag and the quads) are
+    concrete too; only wide paved yards are always blacktop. The map's footpaths (golf.js `buildTrails`) are the same concrete and draw over the lawn but
+    under that paving (`drawOver` 3 cm vs 6 cm), since they run a little off the surveyed walks. The preview has no lasting
     database, so it always cuts. Start times (the open game, cold → saved): street level ~11.5 s → 3.7 s → 2.7 s.
     Cars, bikes, people, the helicopter's skids and the cameras follow it each frame; cars tilt with the slope
     (`groundTilt`). Something new that stands on the street: build it at y = 0 as before, and add
@@ -231,7 +241,9 @@ and the spawn points in `controllers.js`.
 - The HUD: `index.html` and `css/style.css`.
 - What's drawn: `QUALITY` in `main.js`. Street lights and reflections add several seconds to the start and are off.
 
-Keep it smooth: try changes that draw more with the frame rate in the top left, and keep new geometry instanced or
+Keep it smooth: the log's `[frame]` line (every 10 s) gives each part of a frame's milliseconds, draws and triangles;
+measured on campus (M4 Max): game logic under 1.5 ms, the drawing ~13 ms for ~1,380 draws and 11.4M triangles
+(shadows included; the ground layers alone 3.6M in view), so it's the number of draws that costs. Try changes that draw more with the frame rate in the top left, and keep new geometry instanced or
 merged like the rest. The whole city is built before the first frame, about half a minute in Lamp's preview: a look
 takes that long.
 
