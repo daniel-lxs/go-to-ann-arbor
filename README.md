@@ -10,9 +10,9 @@
 
 Each opens Lamp with a copy of Go To Ann Arbor and that change, ready to send:
 
-- [Add snow and rain weather](https://lamp.dev/?repo=https://github.com/mrubens/go-to-ann-arbor&from=readme&ask=Add%20snow%20and%20rain%20weather)
+- [Make it rain and snow around town](https://lamp.dev/?repo=https://github.com/mrubens/go-to-ann-arbor&from=readme&ask=Make%20it%20rain%20and%20snow%20around%20town)
 - [Let me drop a pin and return](https://lamp.dev/?repo=https://github.com/mrubens/go-to-ann-arbor&from=readme&ask=Let%20me%20drop%20a%20pin%20and%20return)
-- [Add a Michigan football game day crowd](https://lamp.dev/?repo=https://github.com/mrubens/go-to-ann-arbor&from=readme&ask=Add%20a%20Michigan%20football%20game%20day%20crowd)
+- [Add a Football Saturday crowd at the Big House](https://lamp.dev/?repo=https://github.com/mrubens/go-to-ann-arbor&from=readme&ask=Add%20a%20Football%20Saturday%20crowd%20at%20the%20Big%20House)
 
 ## Open it in Lamp
 
@@ -35,6 +35,12 @@ Lamp builds this kind of app: it needs Xcode and signing on your Mac, which Lamp
 - Uses [Urban Tree Canopy](https://a2maps.a2gov.org/a2arcgis/rest/services/NaturalFeatures/MapServer/10) by City of Ann Arbor
 - Uses [Current weather at Ann Arbor Municipal Airport (KARB)](https://www.weather.gov/documentation/services-web-api) by National Weather Service (NOAA), LicenseRef-US-Government-Public-Domain
 - Uses [TheRide GTFS timetable](https://www.theride.org/business/software-developers) by Ann Arbor Area Transportation Authority (TheRide)
+- Uses [Road Centerlines (speed limits)](https://a2maps.a2gov.org/a2arcgis/rest/services/RoadsSpeedlimitCrash/MapServer/1) by City of Ann Arbor
+- Uses [Fire Hydrants](https://ckan.a2gov.org/dataset/fire-hydrants) by City of Ann Arbor
+- Uses [Park Amenities](https://ckan.a2gov.org/dataset/park-amenities) by City of Ann Arbor
+- Uses [Address Points](https://ckan.a2gov.org/dataset/address-points) by City of Ann Arbor
+- Uses [Land Use](https://ckan.a2gov.org/dataset/land-use) by City of Ann Arbor
+- Uses [Historic Districts](https://ckan.a2gov.org/dataset/historic-districts) by City of Ann Arbor
 
 Map data is ODbL-1.0: it stays under that license, credited, in this remix.
 

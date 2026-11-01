@@ -254,6 +254,48 @@ for w in ways:
                   'lf': int_tag(t, 'lanes:forward'), 'lb': int_tag(t, 'lanes:backward'), 'mph': mph(t), 'park': park})
 print(f'{len(drive)} drivable ways')
 
+# Speed limits where OpenStreetMap has none: the city's road centerlines (RoadsSpeedlimitCrash layer 1, SpeedLimit),
+# the nearest centerline within 12 m of the way's middle that runs the same way
+cl_path = os.path.join(REF, 'speed/centerlines.geojson')
+if os.path.exists(cl_path):
+    from shapely.strtree import STRtree
+    cl_lines, cl_mph = [], []
+    for f in json.load(open(cl_path))['features']:
+        v = (f.get('properties') or {}).get('SpeedLimit') or 0
+        g = f.get('geometry') or {}
+        if not v or g.get('type') not in ('LineString', 'MultiLineString'):
+            continue
+        for part in ([g['coordinates']] if g['type'] == 'LineString' else g['coordinates']):
+            if len(part) >= 2:
+                cl_lines.append(LineString([xz(lon, lat) for lon, lat in part[:]]))
+                cl_mph.append(int(v))
+    tree = STRtree(cl_lines)
+    filled = 0
+    for r in drive:
+        if r['mph'] or r['hw']:
+            continue
+        line = LineString(r['pts'])
+        mid = line.interpolate(0.5, normalized=True)
+        a, b = line.interpolate(max(0, line.length / 2 - 3)), line.interpolate(min(line.length, line.length / 2 + 3))
+        tx, tz = b.x - a.x, b.y - a.y
+        tl = math.hypot(tx, tz) or 1
+        best, bd = None, 12.0
+        for i in tree.query(mid.buffer(12)):
+            c = cl_lines[i]
+            d = c.distance(mid)
+            if d >= bd:
+                continue
+            u = c.project(mid)
+            ca, cb = c.interpolate(max(0, u - 3)), c.interpolate(min(c.length, u + 3))
+            cx, cz = cb.x - ca.x, cb.y - ca.y
+            if abs(cx * tx + cz * tz) / ((math.hypot(cx, cz) or 1) * tl) < 0.85:
+                continue
+            best, bd = cl_mph[i], d
+        if best:
+            r['mph'] = best
+            filled += 1
+    print(f'{filled} streets given the city\'s speed limit')
+
 # Road graph: split ways at nodes shared with another way
 use = {}
 for r in drive:

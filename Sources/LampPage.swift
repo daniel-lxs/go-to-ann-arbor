@@ -1290,7 +1290,7 @@ final class LampPageBlockedHost: NSObject {
         let pageChanged = answer["changed"] as? [String] ?? []
         // Only the phone page: the game's own page has nothing to do.
         if pageChanged.isEmpty, !now { tell(next, "phone"); return }
-        let change: [String: Any] = ["gen": next, "changed": pageChanged, "now": now, "pill": Self.place != "mac"]
+        let change: [String: Any] = ["gen": next, "changed": pageChanged, "removed": answer["removed"] as? [String] ?? [], "now": now, "pill": Self.place != "mac"]
         guard let page, let json = try? JSONSerialization.data(withJSONObject: change) else { return }
         let taken = try? await page.evaluateJavaScript("window.__lampLive ? window.__lampLive(\(String(decoding: json, as: UTF8.self))) : false", in: nil, contentWorld: .page)
         // A page without Lamp's game runtime is opened again as it is.
@@ -1346,9 +1346,9 @@ final class LampPageBlockedHost: NSObject {
     /// What the page did with a change (lamp-game.js): put in, reopened, waiting for a pause, back where it was.
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
         guard message.frameInfo.isMainFrame, let said = message.body as? [String: Any], let state = said["state"] as? String else { return }
-        // A report also says what was built again and what waits for Reload, and a held change whether it goes in at
-        // the game's next pause by itself: passed on as the page gave them.
-        let more = said.filter { ["built", "kept", "waits", "pause"].contains($0.key) }
+        // A report also says what was built again, what waits for Reload and how long the game stood still for it, and
+        // a held change whether it goes in at the game's next pause by itself: passed on as the page gave them.
+        let more = said.filter { ["built", "kept", "waits", "pause", "frozen", "firstFrame", "later"].contains($0.key) }
         tell(said["gen"] as? Int ?? gen, state, why: said["why"] as? String, more: more)
     }
 
