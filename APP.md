@@ -1,7 +1,7 @@
 Kind: game, drawn with three.js (Lamp's runtime in Web/lamp-game.js), at home on the Mac.
 Look: a sunlit 3D Ann Arbor, Michigan at true scale (brick downtown, campus limestone, leafy neighborhoods, the Huron
 River, Michigan maize #FFCB05 and blue #00274C on the Big House), with a translucent dark heads-up display over it: the
-place and street at the bottom left over a minimap, the modes (Walk, Drive, Cycle, Fly) at the bottom, the vehicle and
+place and street at the bottom left over a minimap, the modes (Walk, Drive, Cycle, Fly, Paddle) at the bottom, the vehicle and
 its speed at the bottom right, and time of day, Teleport, Map and sound at the top right.
 
 # Ann Arbor
@@ -11,15 +11,23 @@ Manhattan to Ann Arbor. The city inside the I-94/US-23/M-14 ring, about 7 by 6 k
 is, every building from the city's surveyed footprints and heights, the Huron River, parks, the Diag, street trees from
 the city's inventory, traffic and people; Michigan Stadium ("the Big House") modelled by hand.
 
-- **Getting around**: 1 walk, 2 drive your own black compact SUV (a Subaru Forester look, Michigan "GO BLU" plates; Ann Arbor has few taxis), 3 cycle, 4 fly a sightseeing helicopter. W A S D or the
+- **Getting around**: 1 walk, 2 drive your own black compact SUV (a Subaru Forester look, Michigan "GO BLU" plates; Ann Arbor has few taxis), 3 cycle, 4 fly a sightseeing helicopter, 5 paddle a kayak on the Huron (its current follows the river's real flow, below). F gets out of a car and into the nearest one, parked or moving (the moving one's driver is left behind; `enterOrExit` in controllers.js), but not above about 9 mph ("Slow down to get out"). Each car kind drives its own way (`CAR_HANDLING` in controllers.js: mass, top speed, pickup, grip, steering, body roll); traffic and parking include a low sports coupe (`BODY_SPECS.sports` in cars.js), the quickest to drive. Parked cars keep their lamps dark. On the bike, the map and minimap show bike lanes solid, shared lanes dashed and paved paths thin (city-map.js). W A S D or the
   arrows, Space or E up and Q or C down in the helicopter, B horn. Dragging orbits the camera. The player starts on
   S Main St near Liberty. The helicopter lands wherever its skids come down: the ground, Michigan Stadium's field
   and stands (it flies into the bowl; `helicopterFloor` in `controllers.js` uses `bowlSurface`), and any roof it
   was above — a house's own pitched roofs (houses.js gives the house's collider `roofs`, each a plane set), other
   buildings' flat tops. A roof it rests on doesn't push it sideways; one above it is still a wall.
-- **Cameras**: V (Shift-V back) or 5 to 0: chase, action, first person and scenic ones (the Diag, Main Street, State &
-  Liberty, Burton Tower & Ingalls Mall, atop Burton Tower, the Big House, the Arb & the Huron River). The camera ids in
-  `cameras.js` are still New York's (`centralPark`, `fifthAve`...), with Ann Arbor's names and poses.
+- **Cameras**: V (Shift-V back): chase, action, first person and scenic ones (`diag`, `mainStreet`, `stateLiberty`,
+  `burtonTower`, `burtonTop`, `bigHouse`, `arbRiver` in `cameras.js`).
+- **Knocks and falls**: people, trees, signal and lamp poles and sign posts are solid (`obstacles` from
+  street-details.js and traffic-controls.js, colliders marked `thin` so the helicopter ignores them). A person the
+  player hits at speed goes limp: a 16-point Verlet ragdoll (`startRagdoll`, `stepRagdoll`, `solveRagdoll` in
+  pedestrians.js, driven by `strike` in pedestrian-system.js), who then gets up through the dive's recovery, or is
+  cleared once out of sight. A cyclist hitting something hard, or the player struck by a car, falls the same way
+  (`knockDown`, `throwRider` in controllers.js), then stands up; a 'thud' cue and rumble go with each hit.
+  A car hitting a tree, pole or sign post hard enough knocks it over (knockdowns.js): the speed it takes grows with
+  a tree's trunk and falls with the car's mass; it tips about its foot the way the car went, lands with a thud or
+  crash, stays down and stops being solid, and the car loses speed by how stout it was.
 - **The city**: time of day from the buttons at the top, Teleport (Main Street, the Diag, Burton Tower, the Michigan
   Theater, Kerrytown, the Big House, the Arb, Gallup Park), M the full map (true north up), H hides the HUD, N sound.
 - **A controller** works too (`gamepad-controls.js`): left stick move or steer, right stick look, RT and LT gas and
@@ -30,7 +38,7 @@ the city's inventory, traffic and people; Michigan Stadium ("the Big House") mod
 - **Badge and map**: the top left says "Go To Ann Arbor" and "GitHub ↗", which opens https://github.com/mrubens/go-to-ann-arbor
   (through `openRepo` in Sources/Native.swift in the app; a plain link elsewhere). Mr.doob's credit, "Made from
   Mr.doob's Slop New York", is under the full map's title. The game starts with no GPS route; Teleport sets one and
-  the full map's "Clear route" button clears it (nyc-map.js).
+  the full map's "Clear route" button clears it (city-map.js).
 - **Churches**: a sizeable building on a religious parcel is drawn by churches.js (gable roof, bell tower and spire
   with a cross, lancet and rose windows, a door), 55 of them.
 
@@ -44,15 +52,15 @@ the city's inventory, traffic and people; Michigan Stadium ("the Big House") mod
     times a second (`game({ renderer, init, frame, touch: false, keyboard: false, snapshot })`: the city reads its own
     keys and draws its own touch controls; a controller comes as the first pad; after a change of code `init` starts
     the city where `snapshot()` left it, full map and hidden HUD included). Lamp draws it at 1920x1080 and fits that to the window.
-  - The place: `nyc-geodata.js` (the real geography, generated data: don't edit by hand), `city-config.js` (streets,
-    avenues, parks, shores in meters), `city-grid.js`, `landmarks.js`, `outskirts.js`, `road-network.js`,
+  - The place: `city-geodata.js` (the real geography, generated data: don't edit by hand), `city-config.js` (streets,
+    parks, water, the town's edge `TOWN_EDGE` and bounds `TOWN_BOUNDS`, `LANDMARKS`, in meters), `city-grid.js`, `landmarks.js`, `outskirts.js`, `road-network.js`,
     `road-paint.js`, `traffic-controls.js` (traffic lights on mast arms at OSM signals, switched each frame from
     city-config.js's signalPhase so they match what traffic obeys; stop & yield signs where road-network.js put
-    them, mapped or inferred at side streets), `street-details.js` (lamps, signs, hydrants, tree pits), `street-props.js` and
-    `subway-entrances.js` (the entrances' models and places), `trees.js` and `tree-placements.js`.
+    them, mapped or inferred at side streets), `street-details.js` (lamps, signs, hydrants, tree pits), `street-props.js`, `trees.js` and
+    `tree-placements.js`.
   - Buildings: `building-geodata.js` reads every surveyed building from `building-geodata.bin.gz` and
     `tree-geodata.js` every street tree from `tree-geodata.bin.gz` (both beside them, generated by Mr.doob's
-    `tools/build-buildings.py` and `tools/build-trees.py`; `subway-geodata.js` likewise). `buildings.js` makes them
+    `tools/build-buildings.py` and `tools/build-trees.py`). `buildings.js` makes them
     into merged facades (`building-footprints.js`, one mesh per square kilometer) with their details
     (`building-details.js`, `fire-escapes.js`), colliders the shape of each outline (`building-collision.js`).
   - Looks: `tsl-materials.js` (every material, in TSL), `lighting.js` (`TIME_PRESETS`: sun, sky, fog for each time
@@ -62,7 +70,7 @@ the city's inventory, traffic and people; Michigan Stadium ("the Big House") mod
     how they cross and dodge), `pedestrians.js` (their bodies and gait) and `pedestrian-routes.js`; the vehicles are
     lofted from cross-sections in code with three.js's LoftGeometry: `cars.js`, `bus.js`, `helicopter.js`, and the
     pieces they share in `vehicles.js`.
-  - `cameras.js`, `nyc-map.js` (the minimap and the full map), `scene-culling.js`, `audio-*.js` (the synthesized
+  - `cameras.js`, `city-map.js` (the minimap and the full map), `scene-culling.js`, `audio-*.js` (the synthesized
     sounds), `gamepad-controls.js`, `touch-controls.js` (shown on a touch screen).
   - The ground: `terrain.js`. The city is built flat at street level (y = 0) and then set on the real ground's heights:
     `groundHeight(x, z)` is the one answer to "how high is the ground here", and everything asks it. `setOnTerrain`
@@ -75,27 +83,28 @@ the city's inventory, traffic and people; Michigan Stadium ("the Big House") mod
     (`groundTilt`). Something new that stands on the street: build it at y = 0 as before, and add
     `groundHeight(x, z)` where it's placed (or leave it in a group setOnTerrain sets).
 
-- three.js is Lamp's (`Web/three`), older than the one Mr.doob now pins: the tree, sign and subway materials keep
+- three.js is Lamp's (`Web/three`), older than the one Mr.doob now pins: the tree and sign materials keep
   alpha-test nodes (`alphaTestNode`/`maskShadowNode`) rather than `alphaTest`, the workaround he dropped in his commit
   c9c1900 once three.js fixed shadow casters re-checking their shaders every frame.
 
 ## Data
 
-Everything ships with the game; the only thing fetched while it runs is the live weather (`weather.js`: the National
+Everything ships with the game; the only things fetched while it runs are the live weather (`weather.js`: the National
 Weather Service's latest observation at KARB, api.weather.gov, every 15 minutes; a fair day offline; no personal
-details sent). All the rest is generated by
+details sent) and the Huron's flow (`river-gauge.js`: the USGS gauge "Huron River at Ann Arbor", site 04174500,
+discharge in cubic feet a second, asked for with the weather; public domain; the kayak's current is scaled by
+(cfs/500)^0.4 within 0.45 to 2.4, and runs at 1 offline). All the rest is generated by
 `Assets/Tools/build-annarbor.py` (run with the venv's Python in `.lamp/reference/venv`; its downloads are cached in
 `.lamp/reference/aa/`), which writes the files below in the same shapes Mr.doob's New York tools did:
 
-- `Web/js/nyc-geodata.js` (the name kept; Ann Arbor's map): streets, blocks, parks, water and the land's outline from
+- `Web/js/city-geodata.js` (Ann Arbor's map; `GEO.edge` the detailed area's outline): streets, blocks, parks, water and the land's outline from
   OpenStreetMap through the Overpass API (ODbL). World frame: 1 unit = 1 m, x east, z south, true north up
   (`GEO.frame.bearingDeg` 0), origin at Main St & Liberty St (42.27965, -83.74838).
 - `Web/js/building-geodata.bin.gz`: the City of Ann Arbor's building footprints (AAGIS, from 2009 LiDAR, with average
   heights; https://ckan.a2gov.org/dataset/building-footprints), OSM heights where it has them.
 - `Web/js/tree-geodata.bin.gz`: the City of Ann Arbor's street tree inventory. It states no license: fine to use here,
   but ask the city before publishing or sharing the game widely.
-- `Web/js/subway-geodata.js`: empty (Ann Arbor has no subway).
-- `Web/data/elevation.bin.gz`: ground heights from the open Terrain Tiles on AWS (Mapzen, USGS 3DEP), relative to the
+- `Web/data/elevation.bin.gz` (also from build-annarbor.py): ground heights from the open Terrain Tiles on AWS (Mapzen, USGS 3DEP), relative to the
   lowest ground in the box (downtown is about 28 m up, the river lowest).
 
 Houses (survey kind 1 under 14 m, and small sheds and garages) are drawn by `houses.js`, not the facade shaders. Each
@@ -160,6 +169,13 @@ More from the generator, each in `GEO`:
 - Storefront signs (`GEO.signs`, OSM named shops, food, bars, services; `shop-signs.js`, one atlas) on the wall of the
   building each is in that faces the street; building names (`GEO.places`, the footprints' `Bldg_Name`) show in the
   location label as you pass (`buildingNameAt`).
+- Amtrak's Wolverine (`data/wolverine.json`, `Assets/Tools/build-wolverine.py` from Amtrak's GTFS feed,
+  https://content.amtrak.com/content/gtfs/GTFS.zip, unzipped in .lamp/reference/amtrak/feed; the feed states no
+  license): each train's stop at Ann Arbor, [train, west or east, headsign, arrival, departure, days, first and last
+  date]. `railways.js` runs the Michigan Subdivision's passenger train on it by Ann Arbor's clock (`runTimetable`):
+  braking in toward the Depot Street station (`STATION`), standing at the platform until its departure, pulling out
+  with its horn; with no train due it's out of sight. The two freights still run back and forth. Rebuild the data
+  when the feed changes (this one runs to Oct 2027).
 - Railroad crossings (`data/rail-crossings.json`, OSM level crossings, `Assets/Tools/build-rail-crossings.py`): every
   one gets gates (`railways.js` buildCrossingGates), a mast with crossbuck and red lamps at the right-hand curb each
   side, whose arms come down and lamps flash while a train is within 160 m.
@@ -192,7 +208,7 @@ More from the generator, each in `GEO`:
 
 What's Ann Arbor's by hand: `city-config.js` (`LANDMARK_SITES`, `TELEPORT_LOCATIONS`), `landmarks.js` (the Big House,
 which clears the survey's buildings under its collider), `outskirts.js` (the farmland and ground around and under the
-city; `boroughs.js` is New York's and unused), the names in `nyc-map.js` (`AREA_LABELS`), `cameras.js` and the HUD,
+city), the names in `city-map.js` (`AREA_LABELS`), `cameras.js` and the HUD,
 and the spawn points in `controllers.js`.
 
 ## Easy to change
@@ -210,7 +226,7 @@ takes that long.
 
 Most changes go into the city as it's played, with nothing built again and the player where they are: the HUD's look
 (`css/style.css`), how the player moves and the vehicles' tuning (`controllers.js`), the cameras (`cameras.js`), the
-time presets (`lighting.js`), the map's drawing (`nyc-map.js`) and the controller (`gamepad-controls.js`), each a class
+time presets (`lighting.js`), the map's drawing (`city-map.js`) and the controller (`gamepad-controls.js`), each a class
 in a module ending with `hot(import.meta).accept()` from lamp-game.js ("Changes while it's played" there). Anything
 else (`main.js`, `index.html`, what those constructors built once, a new module) runs the game's code again in place,
 back where the player was, in a couple of seconds: `main.js` keeps the renderer and each part of the city
