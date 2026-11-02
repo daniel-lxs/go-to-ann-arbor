@@ -306,3 +306,12 @@ itself gathered, `release()` from the run or part that owns a system. Big tables
 Memory (device-tier.js: full, light for a Mac with 16 GB or less, phone): the still parts of the city (main.js `still`, the streamed ground tiles, the streamed houses) keep their vertex data on the GPU only (gpu-only.js lets go of the script's copy once uploaded, sending out-of-sight pieces up after a few rounds). Where the tier streams (`TIER.stream` metres), parked cars come and go by 250 m cell (parked-cars.js, `onColliders`), trees by square kilometre (trees.js, `onObstacles`, their trunks solid through main.js), and the shop signs are painted at half size. memory-report.js logs the count once built and as spare copies go; the phone setting aims under 450 MB (about 350 MB measured in the preview). `?tier=phone` tries the phone setting.
 
 Tree sizes (trees.js): a surveyed street tree grows to its real height (only a typo past 45 m is cut down); park, wood and yard trees (`likeStreet` from city-grid.js) take a height from the taller two-thirds of the surveyed street trees of their kind.
+
+Electric cars: Tesla (fastback sedan), Ioniq 5 (boxy hatch) and Cybertruck (stainless wedge) are body specs in cars.js built on the sedan, SUV and pickup; they appear in town traffic, highway traffic and parked cars, drive with quick EV pull, and sound of tyres only.
+Rivian R1S (from the SUV) and R1T (from the pickup) join them: oval corner headlamps, full-width tail bar, Rivian colors.
+
+- Buses: on foot, F beside a bus at its stop gets on (its driver waits while the player walks up); the player rides along out of sight with the camera pulled back, and F at a later stop gets off at the door (traffic.js boardBus/busRide/leaveBus, controllers.js getOnBus/getOffBus, main.js getInOrOut).
+- ONE WAY signs at the corners where one-way streets leave an intersection (traffic-controls.js).
+- Burton Tower, Hill Auditorium and the Michigan Union are modeled by hand (campus-landmarks.js).
+
+- PFAS foam: river-pfas.js reads Michigan EGLE's Huron River PFAS sampling (nearest site to town, Barton Pond) at start; PFOS against the 12 ppt state limit sets waterDisturb.pfas (0-1), which the water shader (tsl-materials.js pfasFoam) turns into drifting off-white foam rafts, thicker in the cascades. Offline it uses the last known reading.
