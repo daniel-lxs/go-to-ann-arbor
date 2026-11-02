@@ -34,6 +34,15 @@ the city's inventory, traffic and people; Michigan Stadium ("the Big House") mod
   light sites get `out`, its pool is hidden); scene-culling.js notes where each split-up instance went (`movedTo`,
   `shadowCopy`) so a knocked-over piece moves where it's drawn (a chunk never inherits
   its source's notes). The parks' globe lampposts (`parkLampMeshes` from city-grid.js) are solid and fall the same way.
+  Fire hydrants (obstacles of kind 'hydrant' from street-details.js) are thrown instead: they fly off tumbling the way
+  the car went, bounce and scrape to rest (`throwHydrant`, `updateFlying` in knockdowns.js), and the broken riser gushes
+  (hydrant-spray.js): a clear, streaming jet leaning with the breeze (a flared open cylinder with TSL streaks), thin
+  speed-streaked drops falling back as rain with splashes, soft camera-facing mist puffs, and a spreading wet patch;
+  full pressure 30 s, then shut off over 6 s. Its roar is `gush` in audio-system.js.
+  Cars drive into the Big House over its rim: `carSurface` in stadium-shape.js is the car's ground there (the wall
+  top, the concourse, then the stands' steps down to the field), and the bowl's colliders don't stop cars. Cars leave
+  the ground when they come over a crest or up the stands fast (`carVertical` in controllers.js: ballistic flight,
+  nose following the arc, a thump and rumble on landing); a step up too tall for the speed bounces them back.
 - **The city**: time of day from the buttons at the top, Teleport (Main Street, the Diag, Burton Tower, the Michigan
   Theater, Kerrytown, the Big House, the Arb, Gallup Park), M the full map (true north up), H hides the HUD, N sound.
 - **A controller** works too (`gamepad-controls.js`): left stick move or steer, right stick look, RT and LT gas and
@@ -253,9 +262,16 @@ time presets (`lighting.js`), the map's drawing (`city-map.js`) and the controll
 in a module ending with `hot(import.meta).accept()` from lamp-game.js ("Changes while it's played" there). Anything
 else (`main.js`, `index.html`, what those constructors built once, a new module) runs the game's code again in place,
 back where the player was, in a couple of seconds: `main.js` keeps the renderer and each part of the city
-(`live.keep`), and builds a part again only when its own code, or a part it's built from (its `inputs`), changed, so
-a change to the trees builds the street details, traffic and road paint again and the rest stays. A new part of the
-city goes the same way: built by its own module into the group `cityPart` gives it, set on the ground inside that
-build, and kept in `main.js` with the parts it's built from as its inputs. Something new that changes as it's played
+(`live.keep`), and builds a part again only when its own code, the generated data it's built from (its `from`:
+`CITY_MAP`, `BUILDING_DATA`, `TREE_DATA`, `SUBWAY_DATA`) or a part it's built from (its `inputs`) changed, so a change
+to the trees builds the street details, traffic and road paint again and the rest stays, and a change to the map data,
+which nearly every part reads, builds the city again in place with the player where they are. A new part of the city goes the same way: built by its own
+module into the group `cityPart` gives it, set on the ground inside that build, and kept in `main.js` with the data
+it's built from as its `from` and the parts it's built from as its inputs. Something new that changes as it's played
 (a mission, a race) goes in a module of its own, a class `main.js` makes one of.
 Logo: an inline SVG in index.html (`.app-logo`): Burton Tower in navy against a maize sun over a road; the title is Go To Ann Arbor.
+
+The page keeps every version of a module for as long as it's open, with whatever its variables point at, so what a
+module holds at its top level is released when the code runs again: `hot(import.meta).dispose` for what the module
+itself gathered, `release()` from the run or part that owns a system. Big tables that never change as it's played
+(the buildings, the trees) are built inside `keep`, with what they're read from in `from`, so a run reuses them.
