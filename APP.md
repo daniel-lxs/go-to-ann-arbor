@@ -12,7 +12,8 @@ is, every building from the city's surveyed footprints and heights, the Huron Ri
 the city's inventory, traffic and people; Michigan Stadium ("the Big House") modelled by hand.
 
 - **Getting around**: 1 walk, 2 drive your own black compact SUV (a Subaru Forester look, Michigan "GO BLU" plates; Ann Arbor has few taxis), 3 cycle, 4 fly a sightseeing helicopter, 5 paddle a kayak on the Huron (its current follows the river's real flow, below, carries it and turns it where the bow and stern feel different currents; only a blade in the water drives it, each stroke a surge, where a blade goes in and out the water's own surface ripples in rings, and a V wake runs off the bow, both tilting the water's shading, no overlays (`waterDisturb` in tsl-materials.js, set by `updateKayak`, `kayakRipple`, `updateRipples` in controllers.js); the HUD shows its speed over the bed; the Argo Cascades beside Argo Dam are paddleable: nine one-foot drops between rock weirs, from OpenStreetMap's channel and weirs (cascades.js: the water steps down weir by weir in `waterLevel`, the rocks block all but each chute, the current quickens through it, white water below tosses the kayak and it noses down each drop; the rapids are drawn in the water's own shader (`rapidsField` in tsl-materials.js: standing waves, chop and foam), the pond side of the dam is held at the pond's level behind a low wall (`DAM`, `pondSide`), the pond draws the kayak gently to the channel's head (`pondDraw`), and river.js cuts the water and banks every 3 m around the channel while leaving out dry land; the ground under the town (outskirts.js) takes the lowest ground around there so it never shows through). Kayakers and tubers float down from the cascades on a traced 2.4 km run, respawning at the top (river-people.js). F gets out of a car and into the nearest one, parked or moving (the moving one's driver is left behind; `enterOrExit` in controllers.js), but not above about 9 mph ("Slow down to get out"). Each car kind drives its own way (`CAR_HANDLING` in controllers.js: mass, top speed, pickup, grip, steering, body roll); traffic and parking include a low sports coupe (`BODY_SPECS.sports` in cars.js), the quickest to drive. Parked cars keep their lamps dark. Car crashes are rigid-body impulses: into walls and posts at the corner or face that touched, with bounce, sliding friction and spin (`carWallImpulse` in controllers.js); into traffic by mass (vehicle-physics.js); into parked cars, which are bodies of their own weight, shoved and spun, sliding to a stop on locked wheels and knocking the cars beside them (`shoveParked`/`settleParked` in controllers.js, `step` in parked-cars.js). On the bike, the map and minimap show bike lanes solid, shared lanes dashed and paved paths thin (city-map.js). W A S D or the
-  arrows, Space or E up and Q or C down in the helicopter, B horn. Dragging orbits the camera. Each way of getting around starts
+  arrows, Space or E up and Q or C down in the helicopter, Space (A, a touch button) the car's handbrake (locks the back
+  wheels: scrubs speed, lets the tail slide), B horn. Dragging orbits the camera. Each way of getting around starts
   at its own view (`SCENIC_STARTS` in main.js): walking on the Diag facing Burton Tower, the car on Main St at
   William (a first play starts there), the bike in South University's bike lane, the helicopter high south of the
   stadium facing downtown, the kayak on Argo Pond just above the Argo Cascades, facing their entrance. 1 to 5 (`travelBy`) take the player there,
@@ -43,6 +44,20 @@ the city's inventory, traffic and people; Michigan Stadium ("the Big House") mod
   top, the concourse, then the stands' steps down to the field), and the bowl's colliders don't stop cars. Cars leave
   the ground when they come over a crest or up the stands fast (`carVertical` in controllers.js: ballistic flight,
   nose following the arc, a thump and rumble on landing); a step up too tall for the speed bounces them back.
+  A jump can land the car on a building: `carRoof` makes the roofs under it its ground (kept in `_carStanding` so
+  they aren't walls), and it drops off the edge at any speed. Sliding back tires (`car.skid`, from the handbrake or
+  the tail stepping out) lay fading rubber streaks and white tire smoke (skid-effects.js). The player's own car is a
+  maize sports car with GO BLU plates (OWN_CAR). The field has its yard numbers and goal arrows (landmarks.js).
+- **Two wheels and boards** (motorcycles.js): sport bikes, cruisers, scooters, tourers and adventure bikes, plus
+  bicycles, e-scooters and hoverboards, each a procedural model of smooth lofted shells (`loftGeometry`), real
+  wheels (cast, wire or disc, with rotors) and a rider in one mesh per kind for traffic. Motorbikes ride in lanes
+  (1 in 10 of traffic); the quiet kinds (`quiet`, 1 in 10) keep to the curb side of the lane (`CURB_OFFSET`) at
+  their own pace (`curbSpeed`), and cars pass them rather than queue (`ahead` in traffic.js). Any of them can be
+  taken from traffic and ridden in car mode (`createBikeEntity`, handling in CAR_HANDLING); the player's rider is a
+  mesh of its own, so a crash over MOTO_THROW_SPEED into a wall or car throws them off (`throwMotoRider`).
+  A big jump switches to a cinematic camera until landing (cameras.js), higher in the stadium.
+- **Road work** (road-work.js): Michigan's closed blocks with cones, drums, barricades and detailed dump trucks
+  and excavators; traffic routes around closed blocks, and anything driving into the cones knocks them aside.
 - **The city**: time of day from the buttons at the top, Teleport (Main Street, the Diag, Burton Tower, the Michigan
   Theater, Kerrytown, the Big House, the Arb, Gallup Park), M the full map (true north up), H hides the HUD, N sound.
 - **A controller** works too (`gamepad-controls.js`): left stick move or steer, right stick look, RT and LT gas and
@@ -162,8 +177,10 @@ Most are pale concrete; a quarter, and pieces over 120 m², are mid-gray blackto
 Trails (`GEO.trails`, OSM paths, footways, bike paths and tracks inside parks, woods, the cemetery and lawn blocks,
 not sidewalks or golf courses) are flat ribbons from `buildTrails` in `golf.js`: dirt for unpaved, gray paving else.
 Golf courses (`golf.js`, `GEO.golf`): striped fairways, greens with pins, tees, bunkers, cart paths. Railways
-(`railways.js`, `GEO.rail`) lay track with ties and run trains that sound their horn (`audio-events.js`). Parked cars
-(`parked-cars.js`) fill parking-lot stalls and the curb parking lanes, near ones in full with wheels, far ones as simple
+(`railways.js`, `GEO.rail`) lay track with ties and run trains that sound their horn (`audio-events.js`); cars and people ride on top of the
+track (`trackTop`, used by `getGroundHeight` in controllers.js) and trains are solid, immovable bodies to the car
+(`collideTrains`). Parked cars (`parked-cars.js`) fill parking-lot stalls and the curb parking lanes, never within
+3.2 m of a track (`nearTrack`), near ones in full with wheels, far ones as simple
 shapes; traffic is 70 cars and up to 16 buses. TheRide buses (`theride.js`, `data/theride.json.gz` from
 `Assets/Tools/build-theride.py`, which reads TheRide's GTFS feed unzipped in .lamp/reference/gtfs): every trip on the
 road now by Ann Arbor's clock and calendar (a date outside the feed's dates is moved by whole weeks into them) is given
@@ -190,7 +207,7 @@ More from the generator, each in `GEO`:
   taking the city's Road Centerlines `SpeedLimit` (RoadsSpeedlimitCrash/MapServer/1, no license stated; matched within
   12 m and in line). Traffic (`traffic.js` CLASS_TRAFFIC) spawns and turns mostly onto main roads, few onto side
   streets and alleys, at each street's limit; `road-paint.js` paints lane
-  lines and bike lanes, and continental crosswalks only where OSM maps a painted crossing (`GEO.controls.crossings`
+  lines and bike lanes (a centre turn lane ending at a bend tapers its solid edges into the double yellow that goes on), and continental crosswalks only where OSM maps a painted crossing (`GEO.controls.crossings`
   `[x, z, marked]`: 1 painted, 0 not, 2 not said, which gets one only at traffic lights), mid-block ones too.
 - Traffic lights, stop and yield signs (`GEO.controls`, OSM) drawn by `traffic-controls.js`, lit by `signalPhase` in
   `city-config.js`, the same clock traffic obeys.
