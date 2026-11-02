@@ -302,3 +302,5 @@ The page keeps every version of a module for as long as it's open, with whatever
 module holds at its top level is released when the code runs again: `hot(import.meta).dispose` for what the module
 itself gathered, `release()` from the run or part that owns a system. Big tables that never change as it's played
 (the buildings, the trees) are built inside `keep`, with what they're read from in `from`, so a run reuses them.
+
+Memory (device-tier.js: full, light for a Mac with 16 GB or less, phone): the still parts of the city (main.js `still`, the streamed ground tiles, the streamed houses) keep their vertex data on the GPU only (gpu-only.js lets go of the script's copy once uploaded, sending out-of-sight pieces up after a few rounds). Where the tier streams (`TIER.stream` metres), parked cars come and go by 250 m cell (parked-cars.js, `onColliders`), trees by square kilometre (trees.js, `onObstacles`, their trunks solid through main.js), and the shop signs are painted at half size. memory-report.js logs the count once built and as spare copies go; the phone setting aims under 450 MB (about 350 MB measured in the preview). `?tier=phone` tries the phone setting.
