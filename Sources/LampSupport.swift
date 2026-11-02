@@ -2996,7 +2996,13 @@
                 let identity: AppExtensionIdentity? = await withTaskGroup(of: AppExtensionIdentity?.self) { group in
                     group.addTask {
                         guard let found = try? AppExtensionIdentity.matching(appExtensionPointIDs: pointID) else { return nil }
-                        for await list in found { if let first = list.first { return first } }
+                        // The list keeps coming while the chat isn't registered, so the wait ends only by giving up:
+                        // the group can't end before this does, and a loop that never asked would hold the chat (and
+                        // a core) forever, one more for each click.
+                        for await list in found {
+                            if let first = list.first { return first }
+                            if Task.isCancelled { return nil }
+                        }
                         return nil
                     }
                     group.addTask {
@@ -17668,9 +17674,9 @@
     #endif
 
 #if os(macOS)
-/// Lamp's mark: the system's shuffle symbol, the one Lamp shows for remixing.
+/// Lamp's mark: the system's wand-and-sparkles symbol, the one Lamp shows for remixing.
 enum LampGlyph {
-    static let symbol = "shuffle"
+    static let symbol = "wand.and.sparkles"
 
     /// The symbol at that point size and weight: a template, which a button tints as it does any symbol, unless
     /// it's given a color of its own.
