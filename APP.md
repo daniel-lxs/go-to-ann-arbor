@@ -16,7 +16,7 @@ the city's inventory, traffic and people; Michigan Stadium ("the Big House") mod
   wheels: scrubs speed, lets the tail slide), B horn. Dragging orbits the camera. Each way of getting around starts
   at its own view (`SCENIC_STARTS` in main.js): walking on the Diag facing Burton Tower, the car on Main St at
   William (a first play starts there), the bike in South University's bike lane, the helicopter high south of the
-  stadium facing downtown, the kayak on Argo Pond just above the Argo Cascades, facing their entrance. 1 to 5 (`travelBy`) take the player there,
+  stadium facing downtown, the kayak in the Argo Cascades' channel by Argo Park's dock, facing the rapids. 1 to 5 (`travelBy`) take the player there,
   unless that vehicle is within 40 m, when they just take it. The helicopter lands wherever its skids come down: the ground, Michigan Stadium's field
   and stands (it flies into the bowl; `helicopterFloor` in `controllers.js` uses `bowlSurface`), and any roof it
   was above — a house's own pitched roofs (houses.js gives the house's collider `roofs`, each a plane set), other
@@ -49,17 +49,27 @@ the city's inventory, traffic and people; Michigan Stadium ("the Big House") mod
   the tail stepping out) lay fading rubber streaks and white tire smoke (skid-effects.js). The player's own car is a
   maize sports car with GO BLU plates (OWN_CAR). The field has its yard numbers and goal arrows (landmarks.js).
 - **Two wheels and boards** (motorcycles.js): sport bikes, cruisers, scooters, tourers and adventure bikes, plus
-  bicycles, e-scooters and hoverboards, each a procedural model of smooth lofted shells (`loftGeometry`), real
-  wheels (cast, wire or disc, with rotors) and a rider in one mesh per kind for traffic. Motorbikes ride in lanes
+  bicycles, e-bikes (battery on the down tube, rear hub motor, fenders and rack; ridden to 28 mph), e-scooters and hoverboards, each a procedural model of smooth lofted shells (`loftGeometry`), real
+  wheels (cast, wire or disc, with rotors), one mesh per kind for traffic. Riders are the town's skinned people
+  (`PersonRig.perch` in pedestrians.js, posed from `motoRiderPose(kind)`, drawn through a `PersonCrowd` in traffic.js
+  within RIDER_DISTANCE) wearing a real helmet (`buildHelmetGeometry`, full, open-face or bicycle by `HELMET_OF`). Motorbikes ride in lanes
   (1 in 10 of traffic); the quiet kinds (`quiet`, 1 in 10) keep to the curb side of the lane (`CURB_OFFSET`) at
   their own pace (`curbSpeed`), and cars pass them rather than queue (`ahead` in traffic.js). Any of them can be
-  taken from traffic and ridden in car mode (`createBikeEntity`, handling in CAR_HANDLING); the player's rider is a
-  mesh of its own, so a crash over MOTO_THROW_SPEED into a wall or car throws them off (`throwMotoRider`).
+  taken from traffic and ridden in car mode (`createBikeEntity`, handling in CAR_HANDLING); the player rides as their own
+  person perched on it with the bike's helmet (`riderPose`, `riderMesh` is the helmet), so a crash over MOTO_THROW_SPEED into a wall or car throws them off (`throwMotoRider`).
   A big jump switches to a cinematic camera until landing (cameras.js), higher in the stadium.
 - **Road work** (road-work.js): Michigan's closed blocks with cones, drums, barricades and detailed dump trucks
   and excavators; traffic routes around closed blocks, and anything driving into the cones knocks them aside.
+  The dirt (piles, the truck's load, the bucket's scoop, the dug patch) is lumpy procedural mounds (`moundGeo`, `clods`)
+  drawn with ambientCG's Ground 054 soil photo, projected from the world and tinted by vertex colour (`soil` attribute);
+  the machines wear mud low down, streaks, dust on top and shade underneath, all in the one road-work material.
+  The machines are drivable: `nearestMachine` feeds getting in (controllers' enterOrExit), `take` hides the parked one
+  and `leave` puts it down where you got out, `claim` restores one held in a save, `home` (Reset) puts all back.
+  The player's machine is built by `createMachineEntity` (six truck wheels, the front pair steering; the excavator
+  slides on its tracks) with CAR_HANDLING's `dumptruck`/`excavator`, a bigger collision box (`MACHINE_BOX` → `playerBox`,
+  also read by traffic and train contact) and the bus engine sound.
 - **The city**: time of day from the buttons at the top, Teleport (Main Street, the Diag, Burton Tower, the Michigan
-  Theater, Kerrytown, the Big House, the Arb, Gallup Park), M the full map (true north up), H hides the HUD, N sound.
+  Theater, Kerrytown, the Big House, the Arb, Gallup Park), M the full map (true north up), H hides the HUD, N sound, and the reset button (after sound) puts the car, bike, kayak, helicopter and walker back at their starts (`resetGame` in `main.js`).
 - **A controller** works too (`gamepad-controls.js`): left stick move or steer, right stick look, RT and LT gas and
   brake, A jump, LB and RB change mode, Y the camera, Menu the map and B closes it.
 - The guide to the controls and the keys on the HUD's buttons show what the player is holding (`input()`, `label()`

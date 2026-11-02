@@ -21,5 +21,9 @@ enum Native {
             #endif
             return true
         }
+        /// How much memory this device has, in gigabytes: the page builds less of the city on one with 16 GB or less
+        LampNative.on("memory") { _ in
+            Double(ProcessInfo.processInfo.physicalMemory) / 1_073_741_824
+        }
     }
 }
