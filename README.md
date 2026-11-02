@@ -12,9 +12,9 @@
 
 Each opens Lamp with a copy of Go To Ann Arbor and that change, ready to send:
 
-- [Add snow and fall colors by season](https://lamp.dev/?repo=https://github.com/mrubens/go-to-ann-arbor&from=readme&ask=Add%20snow%20and%20fall%20colors%20by%20season)
-- [Let me save favorite spots to revisit](https://lamp.dev/?repo=https://github.com/mrubens/go-to-ann-arbor&from=readme&ask=Let%20me%20save%20favorite%20spots%20to%20revisit)
-- [Give me a Big House game day crowd](https://lamp.dev/?repo=https://github.com/mrubens/go-to-ann-arbor&from=readme&ask=Give%20me%20a%20Big%20House%20game%20day%20crowd)
+- [Add rain and snow weather to the city](https://lamp.dev/?repo=https://github.com/mrubens/go-to-ann-arbor&from=readme&ask=Add%20rain%20and%20snow%20weather%20to%20the%20city)
+- [Let me save my favorite spots as bookmarks](https://lamp.dev/?repo=https://github.com/mrubens/go-to-ann-arbor&from=readme&ask=Let%20me%20save%20my%20favorite%20spots%20as%20bookmarks)
+- [Add a photo mode to snap postcards](https://lamp.dev/?repo=https://github.com/mrubens/go-to-ann-arbor&from=readme&ask=Add%20a%20photo%20mode%20to%20snap%20postcards)
 
 ## Open it in Lamp
 
