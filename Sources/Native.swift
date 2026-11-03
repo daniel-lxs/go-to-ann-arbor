@@ -11,6 +11,7 @@ import UIKit
 enum Native {
     /// The one page the badge's GitHub link may open, in the person's browser
     static let repo = URL(string: "https://github.com/mrubens/go-to-ann-arbor")!
+    static let feedHosts: Set<String> = ["rt.theride.org", "opensky-network.org", "gbfs.spin.pm", "mdotjboss.state.mi.us"]
 
     @MainActor static func register() {
         LampNative.on("openRepo") { _ in
@@ -20,6 +21,19 @@ enum Native {
             await UIApplication.shared.open(repo)
             #endif
             return true
+        }
+        /// A live public feed the page can't read itself (its server doesn't let a page ask): TheRide's bus positions,
+        /// OpenSky's aircraft, Spin's scooters and MDOT's highway work. Only these hosts; the body comes back as base64.
+        LampNative.on("feed") { args in
+            guard let text = args["url"] as? String, let url = URL(string: text), url.scheme == "https",
+                  let host = url.host, feedHosts.contains(host) else { throw LampNative.Failure("not a feed") }
+            var request = URLRequest(url: url, timeoutInterval: 20)
+            request.setValue("GoToAnnArbor/1.0", forHTTPHeaderField: "User-Agent")
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+                throw LampNative.Failure("status \((response as? HTTPURLResponse)?.statusCode ?? 0)")
+            }
+            return data.base64EncodedString()
         }
         /// How much memory this device has, in gigabytes: the page builds less of the city on one with 16 GB or less
         LampNative.on("memory") { _ in

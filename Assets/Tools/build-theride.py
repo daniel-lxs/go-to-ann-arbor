@@ -3,11 +3,16 @@
 #   Web/data/theride.json.gz   routes, the stops in the map, each route's path, and every trip's times at those stops
 # Source: TheRide's GTFS feed, https://www.theride.org/sites/default/files/google/google_transit.zip, unzipped to
 #   .lamp/reference/gtfs/
-# Run: python3 -I Assets/Tools/build-theride.py <app folder>
+# Run: python3 -I Assets/Tools/build-theride.py <app folder> [feed folder] [output]
+# The same tool builds the University of Michigan's Blue Buses (Transportation Services' GTFS feed,
+# https://webapps.fo.umich.edu/transit_uploads/google_transit.zip, unzipped to .lamp/reference/umgtfs/feed):
+#   python3 -I Assets/Tools/build-theride.py <app folder> .lamp/reference/umgtfs/feed Web/data/umbus.json.gz
 import csv, gzip, json, math, os, sys
 
 app = sys.argv[1]
-src = os.path.join(app, '.lamp/reference/gtfs')
+src = os.path.join(app, sys.argv[2] if len(sys.argv) > 2 else '.lamp/reference/gtfs')
+dest = sys.argv[3] if len(sys.argv) > 3 else 'Web/data/theride.json.gz'
+SKIP_ROUTES = {'99995', '99997', '99998', '99999'}  # U-M's charter, training and test routes
 
 # The frame (as build-annarbor.py)
 A, E2 = 6378137.0, 0.00669437999014
@@ -100,6 +105,8 @@ headsigns, head_ix = [], {}
 services, service_ix = [], {}
 trips = []
 for t in rows('trips.txt'):
+    if t['route_id'] in SKIP_ROUTES:
+        continue
     st = sorted(times.get(t['trip_id'], []))
     seq = []
     for _, sid, arr, dep in st:
@@ -119,8 +126,10 @@ for t in rows('trips.txt'):
         service_ix[t['service_id']] = len(services)
         services.append(t['service_id'])
     # [route, shape, headsign, service, block, stop, arrive, depart, stop, arrive, depart, ...]
-    trips.append([route_ix[t['route_id']], sh, head_ix[h], service_ix[t['service_id']], t['block_id'], *seq])
+    trips.append([route_ix[t['route_id']], sh, head_ix[h], service_ix[t['service_id']], t.get('block_id', ''), *seq, t['trip_id']])
 trips.sort(key=lambda r: r[6])
+# each trip's GTFS id, beside it (the live vehicle positions name their trip by it)
+trip_ids = [r.pop() for r in trips]
 
 # Which days each service runs: weekdays (Monday first), the dates it runs between, and the dates added or taken off
 calendar = []
@@ -134,8 +143,8 @@ feed = rows('feed_info.txt')[0]
 
 out = {'feed': [feed.get('feed_version', ''), feed.get('feed_start_date', ''), feed.get('feed_end_date', '')],
        'routes': routes, 'stops': stops, 'shapes': shapes, 'headsigns': headsigns,
-       'calendar': calendar, 'exceptions': exceptions, 'trips': trips}
-path = os.path.join(app, 'Web/data/theride.json.gz')
+       'calendar': calendar, 'exceptions': exceptions, 'trips': trips, 'tripIds': trip_ids}
+path = os.path.join(app, dest)
 with gzip.open(path, 'wt', encoding='utf-8', compresslevel=9) as f:
     json.dump(out, f, separators=(',', ':'))
 print(f'{len(routes)} routes, {len(stops)} stops in the map, {len(shapes)} paths, {len(trips)} trips; '
