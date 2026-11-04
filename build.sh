@@ -19,7 +19,8 @@ LAMP_USAGE='  <key>NSMicrophoneUsageDescription</key><string>Go To Ann Arbor lis
   <key>NSNearbyInteractionUsageDescription</key><string>Go To Ann Arbor finds nearby devices.</string>
   <key>NSLocalNetworkUsageDescription</key><string>Go To Ann Arbor talks to Lamp on your Mac and to devices on your network.</string>
   <key>NSAppleMusicUsageDescription</key><string>Go To Ann Arbor plays music from your library.</string>
-  <key>NSHomeKitUsageDescription</key><string>Go To Ann Arbor reads and controls your home.</string>'
+  <key>NSHomeKitUsageDescription</key><string>Go To Ann Arbor reads and controls your home.</string>
+  <key>LampNetwork</key><dict><key>origins</key><array><string>https://api.weather.gov</string><string>https://waterservices.usgs.gov</string></array><key>mayConnect</key><true/><key>ownSwift</key><true/><key>unrestricted</key><false/></dict>'
 LAMP_MAC_USAGE='  <key>NSMicrophoneUsageDescription</key><string>Go To Ann Arbor listens to your microphone.</string>
   <key>NSSpeechRecognitionUsageDescription</key><string>Go To Ann Arbor turns your speech into text.</string>
   <key>NSCameraUsageDescription</key><string>Go To Ann Arbor uses your camera.</string>
@@ -33,10 +34,11 @@ LAMP_MAC_USAGE='  <key>NSMicrophoneUsageDescription</key><string>Go To Ann Arbor
   <key>NSLocalNetworkUsageDescription</key><string>Go To Ann Arbor looks for printers and other devices on your network.</string>
   <key>NSLocationUsageDescription</key><string>Go To Ann Arbor uses your location.</string>
   <key>NSLocationWhenInUseUsageDescription</key><string>Go To Ann Arbor uses your location.</string>
-  <key>NSAppleMusicUsageDescription</key><string>Go To Ann Arbor plays music from your library.</string>'
+  <key>NSAppleMusicUsageDescription</key><string>Go To Ann Arbor plays music from your library.</string>
+  <key>LampNetwork</key><dict><key>origins</key><array><string>https://api.weather.gov</string><string>https://waterservices.usgs.gov</string></array><key>mayConnect</key><true/><key>ownSwift</key><true/><key>unrestricted</key><false/></dict>'
 LAMP_APP_NAME='Go To Ann Arbor'
-# Builds the game for this Mac (./build.sh mac, build/NewYork3.app), the iPhone and iPad simulator (./build.sh ios,
-# build/iOS/NewYork3.app) or Android (./build.sh android): the Swift around the page, with the page copied in.
+# Builds the game for this Mac (./build.sh mac, build/GoToAnnArbor.app), the iPhone and iPad simulator (./build.sh ios,
+# build/iOS/GoToAnnArbor.app) or Android (./build.sh android): the Swift around the page, with the page copied in.
 set -euo pipefail
 cd "$(dirname "$0")"
 PLACE="${1:-mac}"
@@ -70,41 +72,34 @@ if [[ "$PLACE" == "android" ]]; then
   /usr/bin/sips -s format png -z 432 432 "$ICON" --out build/android-res/mipmap-xxxhdpi/ic_launcher.png > /dev/null
   cd Lamp/Android
   printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties
-  exec "$LAMP_GRADLE" --console=plain -q "-Dlamp.app=newyork3" assembleDebug
+  exec "$LAMP_GRADLE" --console=plain -q "-Dlamp.app=gotoannarbor" assembleDebug
 fi
 if [[ "$PLACE" == "ios" ]]; then
   SDK="$(xcrun --sdk iphonesimulator --show-sdk-path)"
   FLAGS=(-c debug --triple "$(uname -m)-apple-ios17.0-simulator" --sdk "$SDK" --scratch-path .build/ios)
-  APP="build/iOS/NewYork3.app"
+  APP="build/iOS/GoToAnnArbor.app"
 else
   FLAGS=(-c release "${RESTRICT[@]}")
-  APP="build/NewYork3.app"
+  APP="build/GoToAnnArbor.app"
 fi
 # On this Mac, Lamp's player when Lamp hands it over (LAMP_PLAYER): copied, not compiled, so nothing of Apple's tools runs.
 PLAYER="${LAMP_PLAYER:-}"
 [[ "$PLACE" == "ios" ]] && PLAYER=""
 if [[ -z "$PLAYER" ]]; then
-  # Lamp says the Swift and the tools are as they were at its last Mac build (LAMP_SWIFT_BUILT, a change of the page
-  # alone): the binary that build made, where it said it was, rather than a second or two of swift build doing nothing.
-  if [[ "$PLACE" != "ios" && -n "${LAMP_SWIFT_BUILT:-}" && -f .build/lamp-mac-bin ]] && BIN="$(<.build/lamp-mac-bin)" && [[ -x "$BIN" ]]; then
-    :
-  else
-    BIN="$(swift build "${FLAGS[@]}" --show-bin-path)/NewYork3"
-    swift build "${FLAGS[@]}" 2>&1
-    [[ "$PLACE" == "ios" ]] || print -r -- "$BIN" > .build/lamp-mac-bin
-  fi
+  BIN="$(swift build "${FLAGS[@]}" --show-bin-path)/GoToAnnArbor"
+  swift build "${FLAGS[@]}" 2>&1
 fi
 rm -rf "$APP"
 if [[ "$PLACE" == "ios" ]]; then
   mkdir -p "$APP"
-  cp "$BIN" "$APP/NewYork3"
+  cp "$BIN" "$APP/GoToAnnArbor"
   cat > "$APP/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>CFBundleDevelopmentRegion</key><string>en</string>
-  <key>CFBundleExecutable</key><string>NewYork3</string>
-  <key>CFBundleIdentifier</key><string>dev.lamp.nightly.app.newyork3</string>
+  <key>CFBundleExecutable</key><string>GoToAnnArbor</string>
+  <key>CFBundleIdentifier</key><string>dev.lamp.app.gotoannarbor</string>
   <key>CFBundleName</key><string>${LAMP_APP_NAME}</string>
   <key>CFBundleDisplayName</key><string>${LAMP_APP_NAME}</string>
   <key>CFBundlePackageType</key><string>APPL</string>
@@ -130,15 +125,15 @@ else
   if [[ -n "$PLAYER" ]]; then
     mkdir -p "$(dirname "$APP")"
     cp -Rp "$PLAYER" "$APP"
-    mv "$APP/Contents/MacOS/LampPlayer" "$APP/Contents/MacOS/NewYork3"
+    mv "$APP/Contents/MacOS/LampPlayer" "$APP/Contents/MacOS/GoToAnnArbor"
     PLAYED="<key>LampPlayerVersion</key><string>${LAMP_PLAYER_VERSION:-}</string>"
   else
     mkdir -p "$APP/Contents/MacOS"
-    cp "$BIN" "$APP/Contents/MacOS/NewYork3"
+    cp "$BIN" "$APP/Contents/MacOS/GoToAnnArbor"
     # The copy names the SDK it was really built with (see a Mac app's build.sh), so macOS draws it as that SDK does.
     if SDKVER="$(xcrun --sdk macosx --show-sdk-version 2>/dev/null)" \
-      && MINOS="$(otool -l "$APP/Contents/MacOS/NewYork3" | awk '/minos/ {print $2; exit}')" && [ -n "$MINOS" ]; then
-      xcrun vtool -set-build-version macos "$MINOS" "$SDKVER" -replace -output "$APP/Contents/MacOS/NewYork3" "$APP/Contents/MacOS/NewYork3" >/dev/null 2>&1 || true
+      && MINOS="$(otool -l "$APP/Contents/MacOS/GoToAnnArbor" | awk '/minos/ {print $2; exit}')" && [ -n "$MINOS" ]; then
+      xcrun vtool -set-build-version macos "$MINOS" "$SDKVER" -replace -output "$APP/Contents/MacOS/GoToAnnArbor" "$APP/Contents/MacOS/GoToAnnArbor" >/dev/null 2>&1 || true
     fi
   fi
   cat > "$APP/Contents/Info.plist" <<PLIST
@@ -146,8 +141,8 @@ else
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>CFBundleDevelopmentRegion</key><string>en</string>
-  <key>CFBundleExecutable</key><string>NewYork3</string>
-  <key>CFBundleIdentifier</key><string>dev.lamp.nightly.app.newyork3</string>
+  <key>CFBundleExecutable</key><string>GoToAnnArbor</string>
+  <key>CFBundleIdentifier</key><string>dev.lamp.app.gotoannarbor</string>
   <key>CFBundleName</key><string>${LAMP_APP_NAME}</string>
   <key>CFBundleDisplayName</key><string>${LAMP_APP_NAME}</string>
   <key>CFBundlePackageType</key><string>APPL</string>

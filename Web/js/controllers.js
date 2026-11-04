@@ -2712,7 +2712,7 @@ class ThirdPersonControllerManager {
 
   updateHelicopter(dt, elapsed) {
     const h = this.entities.helicopter;
-    const maxHorizSpeed = 52.0;
+    const maxHorizSpeed = 89.4; // 200 mph
     // it climbs faster once well above the rooftops, so the ceiling is a minute and a half away, not three
     const maxVertSpeed = 16.0 + 14 * Math.min(1, Math.max(0, (h.position.y - 250) / 250));
 
@@ -2729,7 +2729,7 @@ class ThirdPersonControllerManager {
     else if (this.keys.down) vertInput = -this.keys.down;
 
     if (fwdInput !== 0) {
-      h.speed += fwdInput * 24.0 * dt;
+      h.speed += fwdInput * 32.0 * dt;
       h.speed = Math.max(-maxHorizSpeed * 0.6, Math.min(maxHorizSpeed, h.speed));
     } else {
       h.speed *= Math.max(0, 1 - dt * 1.8);
