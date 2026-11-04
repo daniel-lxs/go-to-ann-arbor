@@ -42,6 +42,10 @@ ap.add_argument('--max-side', type=int, default=1024, help="the sent photo's lon
 ap.add_argument('--report', help='write a JSON report of this run here')
 ap.add_argument('--workers', type=int, default=12, help='buildings asked about at once')
 ap.add_argument('--keep-crops', action='store_true', help='keep the photos as sent (mapillary/crops/)')
+ap.add_argument('--box', action='store_true', help='find each building in a wide cut of its photo with a Jev Box '
+                'question first, then ask about the cut to that box (two requests a photo)')
+ap.add_argument('--tries', type=int, default=3, help="photos tried per building; raised later, a building whose "
+                'earlier photos all failed is tried on the next ones')
 args = ap.parse_args()
 ROOT = args.root
 CACHE = args.cache or os.path.join(ROOT, '.lamp/reference/aa')
@@ -234,13 +238,8 @@ def assessor(b):
         return None
     p = P_PROPS[hits[0]]
     style = (p.get('resStyle') or '').split(',')[0].strip()
-    storeys = STOREYS.get(style)
-    # a "ranch" whose floor area is well over its ground area has an upstairs (918 Hutchins: 2145 over 1551 sq ft)
-    fa, ga = p.get('floorArea') or 0, p.get('groundArea') or 0
-    if storeys == 1 and ga and fa / ga >= 1.15:
-        storeys = 2 if fa / ga >= 1.3 else 1.5
     return {'pin': p.get('PIN'), 'parcel': hits[0], 'year_built': p.get('yearbuilt') or None,
-            'storeys': storeys, 'style': style or None, 'land_use': p.get('LANDUSE') or None,
+            'storeys': STOREYS.get(style), 'style': style or None, 'land_use': p.get('LANDUSE') or None,
             'floor_area_sqft': p.get('floorArea') or None, 'historic_district': p.get('HDC') or None}
 
 
@@ -436,24 +435,32 @@ def thumb(image_id):
         return Image.open(path).convert('RGB')
 
 
-def crop(b, v, im):
-    """The photo cut to the building, with a margin, as a baseline JPEG within Jev's size limits."""
+def crop(b, v, im, wide=False):
+    """The photo cut to the building, with a margin, as a baseline JPEG within Jev's size limits; wide, a much wider
+    cut for Jev to find the building in. Returns the JPEG, its size, and the street photo and rectangle it came from."""
     src = thumb(v['id'])
     W, H = src.size
     fpx = im['f'] * max(W, H)
     col = lambda a: W / 2 + distort(math.tan(math.radians(max(-80, min(80, a)))), im['k1'], im['k2']) * fpx
     x0, x1 = sorted((col(v['lo']), col(v['hi'])))
     # a wide margin: Mapillary's compass angles are often a few degrees out
-    m = 0.25 * (x1 - x0) + 0.05 * W
+    m = (0.7 * (x1 - x0) + 0.12 * W) if wide else 0.25 * (x1 - x0) + 0.05 * W
     x0, x1 = max(0, min(x0 - m, W - 1)), min(W, max(x1 + m, 1))
     # street photos are level: the street fills the bottom of the frame and buildings stand from about the
     # middle up, so the bottom quarter only costs tokens
     y1 = round(0.74 * H)
-    need = max(0.9 * y1, 280)
+    need = max((1.3 if wide else 0.9) * y1, 280)
     if x1 - x0 < need:
         c = (x0 + x1) / 2
         x0, x1 = max(0, c - need / 2), min(W, c + need / 2)
-    img = src.crop((int(x0), 0, int(math.ceil(x1)), y1))
+    rect = (int(x0), 0, int(math.ceil(x1)), y1)
+    jpeg, size = encode(src.crop(rect), f"{b['key']}_{v['id']}{'_wide' if wide else ''}")
+    # where the building's middle should be across the cut, from the camera's heading
+    across = min(0.9, max(0.1, (col((v['lo'] + v['hi']) / 2) - rect[0]) / max(1, rect[2] - rect[0])))
+    return jpeg, size, src, rect, across
+
+
+def encode(img, name):
     s = min(1, args.max_side / max(img.size))
     img = img.resize((max(1, round(img.width * s)), max(1, round(img.height * s))), Image.LANCZOS)
     if min(img.size) < 280:
@@ -462,10 +469,25 @@ def crop(b, v, im):
     buf = io.BytesIO()
     img.save(buf, 'JPEG', quality=88)
     if args.keep_crops:
-        path = os.path.join(MLY, 'crops', f"{b['key']}_{v['id']}.jpg")
+        path = os.path.join(MLY, 'crops', f'{name}.jpg')
         os.makedirs(os.path.dirname(path), exist_ok=True)
         open(path, 'wb').write(buf.getvalue())
     return buf.getvalue(), img.size
+
+
+def boxed(b, v, src, rect, box):
+    """The street photo cut to the box Jev found (fractions of the wide cut `rect`), padded a little."""
+    x0, y0, x1, y1 = rect
+    w, h = x1 - x0, y1 - y0
+    l, r = x0 + box['left'] * w, x0 + box['right'] * w
+    t, u = y0 + box['top'] * h, y0 + box['bottom'] * h
+    px, py = 0.15 * (r - l) + 8, 0.12 * (u - t) + 8
+    l, r, t, u = max(0, l - px), min(src.width, r + px), max(0, t - py), min(src.height, u + py)
+    # not thinner than a third of its height, nor a sliver
+    if r - l < (u - t) / 3:
+        c = (l + r) / 2
+        l, r = max(0, c - (u - t) / 6), min(src.width, c + (u - t) / 6)
+    return encode(src.crop((int(l), int(t), int(math.ceil(r)), int(math.ceil(u)))), f"{b['key']}_{v['id']}_box")
 
 
 # --- Palettes (houses.js) -------------------------------------------------------------------------------------------------
@@ -604,10 +626,11 @@ if os.path.exists(ANSWERS):
             answers[e['key']] = e
 _answers_lock = threading.Lock()
 VISIBLE = 0.5  # below this, the photo doesn't show the building: ignore its answers
+BOX_SURE = 0.5  # a Box answer less sure than this keeps the usual crop
 photos_by_id = {}
 
 
-def classify(b, views, area):
+def classify(b, views, area, tries=()):
     a = b['assessor'] or {}
     if b['house']:
         state = {'assessor': {k: a.get(k) for k in ('year_built', 'style', 'historic_district') if a.get(k)}}
@@ -616,15 +639,43 @@ def classify(b, views, area):
         state = {'assessor': {k: a.get(k) for k in ('year_built', 'land_use') if a.get(k)}}
         qs = shop_questions(b)
     state['about'] = 'A street-level photo of one building in Ann Arbor, Michigan, cut to that building.'
-    # the best photo first; the next only if Jev says this one doesn't clearly show the building
-    tries = []
+    # the best photo first; the next only if Jev says this one doesn't clearly show the building (after any tried
+    # in an earlier run)
+    tries = list(tries)
+    first = len(tries)
     for v in views:
-        jpeg, size = crop(b, v, photos_by_id[v['id']])
+        box = None
+        if args.box:
+            # first find the building in a wider cut, then ask about the cut to its box
+            wide, _, src, rect, across = crop(b, v, photos_by_id[v['id']], wide=True)
+            what = 'house' if b['house'] else 'building with a shopfront'
+            d0 = ask_jev({'about': 'A street-level photo in Ann Arbor, Michigan.', 'photo_hint':
+                          f"The {what} we want is about {across:.0%} of the way across `photo` from the left, its "
+                          f"nearest wall about {v['dist']:.0f} m from the camera."}, {
+                'present': {'type': 'noul', 'instructions':
+                            f'Can the walls of the {what} described in `photo_hint` be clearly seen, mostly '
+                            'unobstructed by trees, vehicles or other buildings?'},
+                'target': {'type': 'box', 'instructions':
+                           f'the whole {what} described in `photo_hint`, walls and roof, not its neighbours'}}, wide)
+            box = {'answers': d0['answers'], 'usage': d0.get('usage')}
+            if d0['answers']['present']['noul'] < 0.3:
+                tries.append({'image': v['id'], 'box': box, 'view': {k: v[k] for k in ('dist', 'headon', 'trees', 'score', 'year')},
+                              'answers': {'visible': {'type': 'noul', 'noul': d0['answers']['present']['noul']}},
+                              'usage': d0.get('usage')})
+                d = d0
+                continue
+        if box and d0['answers']['target'].get('confidence', 0) >= BOX_SURE:
+            jpeg, size = boxed(b, v, src, rect, d0['answers']['target']['box'])
+        else:
+            jpeg, size, _, _, _ = crop(b, v, photos_by_id[v['id']])
         d = ask_jev(state, qs, jpeg)
-        last = len(tries) == len(views) - 1
+        last = len(tries) - first == len(views) - 1
         seen = d['answers']['visible']['noul'] >= VISIBLE
-        tries.append({'image': v['id'], 'view': {k: v[k] for k in ('dist', 'headon', 'trees', 'score', 'year')},
-                      'size': size, 'usage': d.get('usage'), 'seconds': d.get('seconds'),
+        usage = d.get('usage') or {}
+        if box:
+            usage = {'input_tokens': usage.get('input_tokens', 0) + (box['usage'] or {}).get('input_tokens', 0)}
+        tries.append({'image': v['id'], 'box': box, 'view': {k: v[k] for k in ('dist', 'headon', 'trees', 'score', 'year')},
+                      'size': size, 'usage': usage, 'seconds': d.get('seconds'),
                       # a photo that doesn't show the building only keeps its visibility answer
                       'answers': d['answers'] if seen or last else {'visible': d['answers']['visible']}})
         if seen:
@@ -654,18 +705,28 @@ for area in args.area:
              'photos_nearby': len(photos), 'matched': 0, 'asked': 0, 'errors': 0}
     todo = []
     for b in bs:
-        views = best_photos(b, photos, ptree)
+        views = best_photos(b, photos, ptree, args.tries)
         if not views:
             continue
         stats['matched'] += 1
-        if args.classify and b['key'] not in answers:
-            todo.append((b, views))
+        e = answers.get(b['key'])
+        if not args.classify:
+            continue
+        if not e:
+            todo.append((b, views, ()))
+        elif e['tries'][-1]['answers']['visible']['noul'] < VISIBLE:
+            # with --box, each photo gets one boxed try of its own; without, each photo is tried once
+            done = [t for t in e['tries'] if bool(t.get('box')) == args.box]
+            tried = {t['image'] for t in done}
+            more = [v for v in views if v['id'] not in tried][:max(0, args.tries - len(done))]
+            if more:
+                todo.append((b, more, e['tries']))
     if args.limit:
         todo = todo[:args.limit]
     print(area, {k: v for k, v in stats.items()}, f'{len(todo)} to ask', flush=True)
     t0, tokens, done = time.time(), 0, 0
     with concurrent.futures.ThreadPoolExecutor(args.workers) as pool:
-        futures = {pool.submit(classify, b, views, area): b for b, views in todo}
+        futures = {pool.submit(classify, b, views, area, tries): b for b, views, tries in todo}
         for fut in concurrent.futures.as_completed(futures):
             try:
                 e = fut.result()
