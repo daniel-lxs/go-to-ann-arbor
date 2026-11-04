@@ -46,12 +46,6 @@ def lonlat(x, z):
     return (LON0 + x / KX, LAT0 - z / KY)
 
 
-BBOX = (42.252, -83.782, 42.308, -83.693)  # S, W, N, E
-X0, Z1 = xz(BBOX[1], BBOX[0])
-X1, Z0 = xz(BBOX[3], BBOX[2])
-X0, X1, Z0, Z1 = math.ceil(X0) + 20, math.floor(X1) - 20, math.ceil(Z0) + 20, math.floor(Z1) - 20
-LAND = box(X0, Z0, X1, Z1)
-print(f'land {X0}..{X1} x {Z0}..{Z1}')
 
 r1 = lambda v: round(v, 1)
 
@@ -71,6 +65,29 @@ def parts(g):
     if hasattr(g, 'geoms'):
         return [p for c in g.geoms for p in parts(c)]
     return []
+
+
+# The city's land: the City of Ann Arbor's official limits (data.a2gov.org "City Boundary", fetched by
+# fetch-annarbor.py into limits/), the township islands inside filled, and 120 m round them so the streets on the
+# line are whole. Beyond it the outskirts (outskirts.js) are a plain ring of farms and woods.
+from shapely.prepared import prep
+_lim = unary_union([shapely.geometry.shape(f['geometry']) for f in json.load(open(os.path.join(REF, 'limits/aa_city_boundary.geojson')))['features']])
+_lim = unary_union([Polygon([xz(lon, lat) for lon, lat, *_ in p.exterior.coords]) for p in parts(_lim)])
+LIMITS = unary_union([Polygon(p.exterior) for p in parts(_lim)])
+LAND = max(parts(LIMITS.buffer(120, join_style=2).buffer(-40).buffer(40).simplify(4)), key=lambda p: p.area)
+LAND = Polygon(LAND.exterior)
+LAND_P = prep(LAND)
+X0, Z0, X1, Z1 = [math.floor(v) if i < 2 else math.ceil(v) for i, v in enumerate(LAND.bounds)]
+# The middle of town, drawn at full detail (downtown, campus, Kerrytown, the Old West Side, Burns Park, the big parks,
+# the area the game first covered); beyond it the outer neighborhoods (GEO.core, read by the game to draw less there)
+CORE = box(-2733, -3109, 4528, 3031)
+
+
+def inland(x, z):
+    return X0 < x < X1 and Z0 < z < Z1 and LAND_P.contains(Point(x, z))
+
+
+print(f'land {X0}..{X1} x {Z0}..{Z1}, {LAND.area / 1e6:.1f} km2 ({LIMITS.area / 1e6:.1f} within the limits)')
 
 
 # --- OpenStreetMap ------------------------------------------------------------------------------------------------------
@@ -899,7 +916,7 @@ for f in tj['features']:
     if genus in ('vacant', 'stump', '') or 'vacant' in (pr.get('COMMONNAME') or '').lower():
         continue
     x, z = xz(*g['coordinates'][:2])
-    if X0 < x < X1 and Z0 < z < Z1:
+    if inland(x, z):
         key = (round(x * 2), round(z * 2))
         street_trees.add(key)
         h = FEET.get((pr.get('HEIGHT') or '').replace(' ', ''), 0)
@@ -1079,7 +1096,7 @@ osm_trees = 0
 for e in osm:
     if e['type'] == 'node' and e.get('tags', {}).get('natural') == 'tree':
         x, z = xz(e['lon'], e['lat'])
-        if X0 < x < X1 and Z0 < z < Z1 and not clear2.contains(Point(x, z)):
+        if inland(x, z) and not clear2.contains(Point(x, z)):
             woods.append((x, z, 1))
             osm_trees += 1
 print(f'{sum(1 for w in woods if w[2] < 2)} park & wood trees, {sum(1 for w in woods if w[2] == 2)} yard trees '
@@ -1264,7 +1281,7 @@ try:
         if not g or g['type'] != 'Point':
             continue
         x, z = xz(*g['coordinates'][:2])
-        if not (X0 < x < X1 and Z0 < z < Z1):
+        if not inland(x, z):
             continue
         pt = Point(x, z)
         k = line_tree.nearest(pt)
@@ -1294,7 +1311,7 @@ try:
     for e in json.load(open(os.path.join(REF, 'sig/osm_signals.json')))['elements']:
         t = e.get('tags', {})
         x, z = xz(e['lon'], e['lat'])
-        if not (X0 < x < X1 and Z0 < z < Z1):
+        if not inland(x, z):
             continue
         h = t.get('highway')
         if h == 'traffic_signals':
@@ -1428,6 +1445,9 @@ GEO = {
     'frame': {'bearingDeg': 0, 'origin': 'Main St & Liberty St (centreline)', 'units': 'm', 'cutZ': Z0, 'strip': 0,
               'sidewalk': SIDEWALK, 'lat0': LAT0, 'lon0': LON0, 'kx': KX, 'ky': KY},
     'edge': land_ring,
+    # the city's official limits as drawn on the map (each outline and each township island's), and the middle of town
+    'limits': [flat(list(r.coords)[:-1]) for p in parts(_lim.simplify(3)) for r in [p.exterior, *p.interiors] if Polygon(r).area > 2000],
+    'core': flat(list(orient(CORE, -1.0).exterior.coords)[:-1]),
     'roads': roads,
     'roadGraph': roadGraph,
     'blocks': blocks,
@@ -1557,6 +1577,7 @@ data = struct.pack('<III', 0x3254594e, len(street_trees), len(txs)) + bytes(txs)
 with gzip.open(os.path.join(OUT_JS, 'tree-geodata.bin.gz'), 'wb', 9) as f:
     f.write(data)
 
+LO = -30.0  # the lowest height kept, metres under BASE (227.8 m)
 # --- The river's bed (RIV1): how far each 2 m cell of the water is dug down to the bed (0 at the shore, 255 a few metres
 # out), and the water's level on the elevation's 10 m grid: the
 # lowest ground within 40 m, a little under it, so every bank stands above the water.
@@ -1601,7 +1622,7 @@ dig = ease((dist(~wet, 9) - 0.5) / 7.5) * wet
 eb = gzip.open(os.path.join(OUT_DATA, 'elevation.bin.gz')).read()
 ex0, ez0, estep, ecols, erows, _ = struct.unpack('<6f', eb[4:28])
 ecols, erows = int(ecols), int(erows)
-E = np.frombuffer(eb, '<u2', ecols * erows, 28).reshape(erows, ecols) / 100.0
+E = np.frombuffer(eb, '<u2', ecols * erows, 28).reshape(erows, ecols) / 100.0 + struct.unpack('<f', eb[24:28])[0]
 lc0, lr0 = int((dx0 - ex0) / estep), int((dz0 - ez0) / estep)
 lcols, lrows = int(dcols * DSTEP / estep) + 2, int(drows * DSTEP / estep) + 2
 pad = 5
@@ -1615,12 +1636,12 @@ for _ in range(3):  # eased along the river, never above the lowest bank
     p = np.pad(lvl, 1, mode='edge')
     lvl = np.minimum(sum(p[oy:oy + lvl.shape[0], ox:ox + lvl.shape[1]] for oy in range(3) for ox in range(3)) / 9, low - 0.45)
 oy, ox = lr0 - max(0, lr0 - pad), lc0 - max(0, lc0 - pad)
-lvl = np.clip(lvl[oy:oy + lrows, ox:ox + lcols], 0, 600)
+lvl = np.clip(lvl[oy:oy + lrows, ox:ox + lcols], LO, 300)
 hdr = b'RIV1' + struct.pack('<10f', dx0, dz0, DSTEP, dcols, drows, ex0 + lc0 * estep, ez0 + lr0 * estep, estep,
                             lvl.shape[1], lvl.shape[0])
 body = np.round(dig * 255).astype(np.uint8).tobytes()
 with gzip.open(os.path.join(OUT_DATA, 'river.bin.gz'), 'wb', 9) as f:
-    f.write(hdr + body + b'\0' * (len(body) % 2) + np.round(lvl * 100).astype('<u2').tobytes())
+    f.write(hdr + body + b'\0' * (len(body) % 2) + np.round(lvl * 100).astype('<i2').tobytes())
 print(f'river bed {dcols} x {drows} at {DSTEP} m, levels {lvl.shape[1]} x {lvl.shape[0]},',
       os.path.getsize(os.path.join(OUT_DATA, 'river.bin.gz')) // 1024, 'KB')
 
@@ -1678,12 +1699,16 @@ k /= k.sum()
 H = np.apply_along_axis(lambda r: np.convolve(np.pad(r, 4, mode='edge'), k, 'valid'), 1, H)
 H = np.apply_along_axis(lambda r: np.convolve(np.pad(r, 4, mode='edge'), k, 'valid'), 0, H)
 inside = (gx > X0) & (gx < X1) & (gz > Z0) & (gz < Z1)
-BASE = float(np.percentile(H[inside], 0.5))
-rel = np.clip(H - BASE, 0, 600)
+# the base every height in the game is measured from: the lowest half percent of the first map's box (227.8 m),
+# kept as the map grows so the river's, the dams' and the landmarks' heights in the code stay where they are
+# The east end of town, down the river past Geddes, lies lower: heights go down to LO, the ELV2 header's last number,
+# stored from it
+BASE = 227.8
+rel = np.clip(H - BASE, LO, 600)
 print(f'elevation {cols} x {rows} at {STEP} m, base {BASE:.1f} m, top {rel[inside].max():.1f} m above it')
-hdr = b'ELV2' + struct.pack('<6f', ex0, ez0, STEP, cols, rows, 0)
+hdr = b'ELV2' + struct.pack('<6f', ex0, ez0, STEP, cols, rows, LO)
 with gzip.open(os.path.join(OUT_DATA, 'elevation.bin.gz'), 'wb', 9) as f:
-    f.write(hdr + np.round(rel * 100).astype('<u2').tobytes())
+    f.write(hdr + np.round((rel - LO) * 100).astype('<u2').tobytes())
 print('elevation', os.path.getsize(os.path.join(OUT_DATA, 'elevation.bin.gz')) // 1024, 'KB')
 
 # The heaviest layers out of city-geodata.js into files read as they're needed (split-geodata.py)

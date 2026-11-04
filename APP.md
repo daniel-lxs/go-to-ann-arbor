@@ -69,15 +69,15 @@ the city's inventory, traffic and people; Michigan Stadium ("the Big House") mod
   slides on its tracks) with CAR_HANDLING's `dumptruck`/`excavator`, a bigger collision box (`MACHINE_BOX` → `playerBox`,
   also read by traffic and train contact) and the bus engine sound.
 - **The city**: time of day from the buttons at the top, Teleport (every landmark: Main Street, the Diag, Burton Tower, the Michigan
-  Theater, Kerrytown, the Big House, the Arb, Gallup Park, the Cascades, Hill, the Union, UMMA, the library, Crisler, Amtrak, the Gandy Dancer, Graffiti Alley, the League, Rackham, Yost, the Farmers Market, Tower Plaza), M the full map (true north up), H hides the HUD, N sound, and the reset button (after sound) puts the car, bike, kayak, helicopter and walker back at their starts (`resetGame` in `main.js`).
+  Theater, Kerrytown, the Big House, the Arb, Gallup Park, the Cascades, Hill, the Union, UMMA, the library, Crisler, Amtrak, the Gandy Dancer, Graffiti Alley, the League, Rackham, Yost, the Farmers Market, Tower Plaza, Huron High; and places in the outer neighborhoods, not modelled landmarks, their buildings the city's survey: Briarwood, Pioneer High, Arbor Hills, Buhr Park, County Farm Park, Leslie Park, Skyline High, Veterans Memorial Park), M the full map (the city limits dashed) (true north up), H hides the HUD, N sound, and the reset button (after sound) puts the car, bike, kayak, helicopter and walker back at their starts (`resetGame` in `main.js`).
 - **A controller** works too (`gamepad-controls.js`): left stick move or steer, right stick look, RT and LT gas and
   brake, A jump, LB and RB change mode, Y the camera, Menu the map and B closes it.
 - The guide to the controls and the keys on the HUD's buttons show what the player is holding (`input()`, `label()`
   and `glyph()` from lamp-game.js, in `controlHints`, `renderControlHints` and `relabelKeys` in main.js).
 - The game remembers where the player was between launches (`save('player')`, version 2 since the move from New York).
 - **Badge and map**: the top left says "Go To Ann Arbor" and "GitHub ↗", which opens https://github.com/mrubens/go-to-ann-arbor
-  (through `openRepo` in Sources/Native.swift in the app; a plain link elsewhere). Mr.doob's credit, "Made from
-  Mr.doob's Slop New York", is under the full map's title. The game starts with no GPS route; Teleport sets one and
+  (through `openRepo` in Sources/Native.swift in the app; a plain link elsewhere). Mr.doob's credit is in the app's
+  About window and info (credits.json), not on the map (the person didn't want it there). The game starts with no GPS route; Teleport sets one and
   the full map's "Clear route" button clears it (city-map.js).
 - **Churches**: a sizeable building on a religious parcel is drawn by churches.js (gable roof, bell tower and spire
   with a cross, lancet and rose windows, a door), 55 of them.
@@ -161,6 +161,48 @@ the city's inventory, traffic and people; Michigan Stadium ("the Big House") mod
 - three.js is Lamp's (`Web/three`), older than the one Mr.doob now pins: the tree and sign materials keep
   alpha-test nodes (`alphaTestNode`/`maskShadowNode`) rather than `alphaTest`, the workaround he dropped in his commit
   c9c1900 once three.js fixed shadow casters re-checking their shaders every frame.
+
+## How the world is made, and growing or moving it
+
+The whole City of Ann Arbor inside its official limits (75.6 km², x -4222..5901, z -4889..6330) is built offline, in
+this order, all with `.lamp/reference/venv/bin/python -I <tool> .` from the app folder:
+
+1. `Assets/Tools/fetch-annarbor.py`: the city limits (`.lamp/reference/aa/limits/aa_city_boundary.geojson`, the city's
+   "City Boundary" open data), then everything asked for by area over the limits plus about 600 m (its `BB`):
+   OpenStreetMap through Overpass (streets, buildings, water, woods, parks, land use, parking, rail, golf, trees; shops
+   and amenities; signals and signs; level crossings; roof shapes; fuel; bookcases) and the city's tree canopy. Each
+   file remembers its box and is fetched again only when the box changes. The city's other layers (buildings, street
+   trees, hydrants, land use, park amenities, streetlights, zoning, historic districts, addresses, parcels, speed
+   limits, paving) are whole-city downloads in `.lamp/reference/aa/` already.
+2. `Assets/Tools/fetch-3dep.py`: the USGS 1 m bare earth, in 1 km squares over `CX0..CZ1` (now -6000..7000 both ways).
+3. `Assets/Tools/build-annarbor.py`: the map (`Web/js/city-geodata.js`, buildings, trees, river, 10 m elevation, curb
+   cuts, woods, yards). The detailed area `LAND` is the limits with the township islands filled, buffered 120 m:
+   everything is clipped to it, and `GEO.edge` is its outline (`TOWN_EDGE`, `inTown` in city-config.js, which keeps
+   cars and teleports inside). `GEO.limits` (the real limits and islands) is drawn dashed on the map. `CORE` (the
+   first map's box, downtown, campus, Kerrytown, the Old West Side, the Arb and the big parks) is in `GEO.core` and
+   `inCore` for anything that wants to spend less outside it (nothing does yet). It ends by running
+   `split-geodata.py`, which moves the heaviest layers into `Web/data/` squares streamed by distance.
+4. `Assets/Tools/build-ground.py`: the fine ground (`ground.bin.gz`, a 6 m grid of 2049², corner `GX0, GZ0`
+   -5304, -5424, 12.3 km a side), the 10 m heights remade from it, and the river's levels.
+5. `.lamp/scripts/roof_hills.py . --fix` (roofs the survey kept as ground; copies before it in
+   `.lamp/reference/*-before-roofs.bin.gz`), then the smaller builders: build-addresses, build-districts,
+   build-street-furniture, build-theride, build-rail-crossings, build-roof-shapes, build-gas-stations.
+
+Heights are metres above `BASE` 227.8 m (pinned so the river's, dams' and landmarks' heights in the code stay put);
+the east end down the river lies lower, so heights go down to `LO` -30 m (the ELV2 header's last number; river levels
+are signed). Outside `LAND` the outskirts (outskirts.js) are a plain 50 m grid of the real heights with fields and
+woods, out 6 km.
+
+To add more area: widen `CX0..CZ1` in fetch-3dep.py and fetch, change the area `LAND` is made from in
+build-annarbor.py (the limits, or a polygon of your own) and the fetch box in fetch-annarbor.py,
+build-street-furniture.py and build-theride.py, and move `GX0, GZ0` (and `STEP`/`N`, keeping N at 2049 for the
+terrain mesh) in build-ground.py so its grid covers it; then run the steps above. The ground's squares and the
+geodata's split follow the area by themselves. To move to another place altogether, the world frame (`LAT0, LON0` in
+build-annarbor.py) moves with it, and every Ann Arbor source (the city's open data URLs and field names, the USGS
+squares, the GTFS feeds for TheRide and the U-M buses, the weather station and river gauge) needs its local
+equivalent; the hand-placed things (landmarks and their models, teleports in city-config.js and index.html, the
+dams, the cascades, the stadium, camera spots, area labels on the map) are Ann Arbor's and are written in world
+metres, so they'd all be replaced.
 
 ## Data
 
@@ -362,7 +404,7 @@ module holds at its top level is released when the code runs again: `hot(import.
 itself gathered, `release()` from the run or part that owns a system. Big tables that never change as it's played
 (the buildings, the trees) are built inside `keep`, with what they're read from in `from`, so a run reuses them.
 
-Memory (device-tier.js: light by default on desktop, full via `?tier=full`, phone on touch devices): the still parts of the city (main.js `still`, the streamed ground tiles, the streamed houses) keep their vertex data on the GPU only (gpu-only.js lets go of the script's copy once uploaded, sending out-of-sight pieces up after a few rounds). Where the tier streams (`TIER.stream` metres), parked cars come and go by 250 m cell (parked-cars.js, `onColliders`), trees by square kilometre (trees.js, `onObstacles`, their trunks solid through main.js), and the shop signs are painted at half size. With `?memory` in the address (`MEASURE_MEMORY`; nothing is measured otherwise), memory-report.js logs the count once built and as spare copies go; the phone setting aims under 450 MB (about 280 MB measured in the preview once settled, 415 MB at its peak; the full Mac setting about 1.1 GB settled, 1.8 GB at its peak). Ken MacInnis's pull request #1 coarsened the ground's cutting (16 cm, 5 m edges), shrank the shadow maps and the parked-car streaming, and culled far props, track and river tiles by distance. `?tier=phone` tries the phone setting. The map's heaviest layers are kept out of `city-geodata.js` (now about 2 MB; `Assets/Tools/split-geodata.py`, run at the end of build-annarbor.py, the full copy in `.lamp/reference/city-geodata.full.js`): the driveways, walks and lawns in 500 m squares (`Web/data/yards/<tx>_<tz>.bin.gz`, YRD1, with `index.json`), the woods' trees (`data/woods.bin.gz`) and the curb cuts (`data/curb-cuts.bin.gz`), read by `yards.js`. Where the tier streams, city-grid.js builds the yards as five streamed ground layers (`streamFromSquares` in terrain.js, made from each square's file as it comes near, cut and cached like the rest; raise `YARDS_LOOK` when their look changes); built whole (`allYards()`) otherwise. memory-report.js's `memoryCheckpoint` (main.js `markInit`) tracks the peak of what's counted while loading (city, kept ground, map data, the script heap where the browser tells it) and logs it at every step of the start, only with `?memory` too. Measured at the light tier: peak about 568 MB counted (656 MB before the split), kept ground 52 MB (111), map data 4 MB (32), about 330 to 390 MB once settled.
+Memory (device-tier.js: light by default on desktop, full via `?tier=full`, phone on touch devices): the still parts of the city (main.js `still`, the streamed ground tiles, the streamed houses) keep their vertex data on the GPU only (gpu-only.js lets go of the script's copy once uploaded, sending out-of-sight pieces up after a few rounds). Where the tier streams (`TIER.stream` metres), parked cars come and go by 250 m cell (parked-cars.js, `onColliders`), trees by square kilometre (trees.js, `onObstacles`, their trunks solid through main.js), and the shop signs are painted at half size. With `?memory` in the address (`MEASURE_MEMORY`; nothing is measured otherwise), memory-report.js logs the count once built and as spare copies go; the phone setting aims under 450 MB (about 280 MB measured in the preview once settled, 415 MB at its peak; the full Mac setting about 1.1 GB settled, 1.8 GB at its peak). Ken MacInnis's pull request #1 coarsened the ground's cutting (16 cm, 5 m edges), shrank the shadow maps and the parked-car streaming, and culled far props, track and river tiles by distance. `?tier=phone` tries the phone setting. The map's heaviest layers are kept out of `city-geodata.js` (now about 2 MB; `Assets/Tools/split-geodata.py`, run at the end of build-annarbor.py, the full copy in `.lamp/reference/city-geodata.full.js`): the driveways, walks and lawns in 500 m squares (`Web/data/yards/<tx>_<tz>.bin.gz`, YRD1, with `index.json`), the woods' trees (`data/woods.bin.gz`) and the curb cuts (`data/curb-cuts.bin.gz`), read by `yards.js`. Where the tier streams, city-grid.js builds the yards as five streamed ground layers (`streamFromSquares` in terrain.js, made from each square's file as it comes near, cut and cached like the rest; raise `YARDS_LOOK` when their look changes); built whole (`allYards()`) otherwise. memory-report.js's `memoryCheckpoint` (main.js `markInit`) tracks the peak of what's counted while loading (city, kept ground, map data, the script heap where the browser tells it) and logs it at every step of the start, only with `?memory` too. Measured at the light tier: peak about 568 MB counted (656 MB before the split), kept ground 52 MB (111), map data 4 MB (32), about 330 to 390 MB once settled. With the whole city (Nov 2026): light peak about 665 MB counted, kept ground 99 MB, map data 6 MB, about 640 MB once loaded; the full Mac setting about 2.6 to 2.9 GB (CityGrid 555, CityBlocks 483, built whole); the phone setting not yet measured over the whole city. Streamed offline squares: 404 yard squares of 500 m, 6.9 MB, the biggest 65 KB; the rest (map 4.1 MB, buildings 0.5, trees 0.2, ground 4.1, 10 m heights 4.3, river 1.7, woods 1.8) is read whole at the start and built into 500 m tiles near the player.
 
 Tree sizes (trees.js): a surveyed street tree grows to its real height (only a typo past 45 m is cut down); park, wood and yard trees (`likeStreet` from city-grid.js) take a height from the taller two-thirds of the surveyed street trees of their kind.
 
@@ -397,6 +439,8 @@ Both are in the teleport menu (index.html buttons, TELEPORT_LOCATIONS gandy and 
 Teleport viewpoints (city-config.js TELEPORT_LOCATIONS, `view(x, z, targetX, targetZ, lookUp)`): each landmark's arrival is authored by eye for a clear view of its model (not snapped to the nearest street), with how far the camera looks up (`teleportTo`'s fourth argument sets `cameraSystem.lookUp`). A new landmark gets its own checked viewpoint and a tp-* button in index.html.
 
 The Amtrak station (more-landmarks.js, amtrakStation): the 1983 one-story brown-brick station on Depot St (survey block at 429,-903), a clerestory glass band under a low hipped roof, a full-height glass front toward the parking, and a long canopy on posts along the tracks side.
+
+Huron High School (more-landmarks.js, huronHigh): the 1969 school on Fuller Rd, modelled on the survey's one outline of it (found by 3746,-205): two round classroom pods joined by a diagonal spine with curved wings, three storeys of brown brick with ribbon windows set per wall at that wall's ground (the site slopes), a proud concrete fascia, the taller gym block on the north (its corners hand-placed inside the outline), glass dome skylights on both pods, rooftop units, and the main doors under a concrete canopy on the spine's south side. Its outbuildings stay survey blocks.
 
 Landmark fixes from the viewpoint check: the Michigan Theater's doors sit on its face; arch steps scale by the arch's width; the District Library has its front wing and Fifth Ave entrance; Rackham's entrance is on the south; the Gandy Dancer's dormer is stone with arched windows. Michigan Stadium's outer wall rises with the ground round the bowl (smoothed so it isn't a sawtooth), the survey's thin scoreboard boxes at each end are replaced by the stadium's collider, and the video boards' backs carry a maize block M on blue.
 

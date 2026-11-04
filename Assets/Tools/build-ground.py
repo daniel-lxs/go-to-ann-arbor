@@ -1,11 +1,11 @@
 # Builds the ground's fine heights from the USGS 3D Elevation Program's 1 m bare-earth model (3DEP, public domain;
 # fetched once by fetch-3dep.py into .lamp/reference/dem1m/), after build-annarbor.py has made the city's data:
-#   Web/data/ground.bin.gz     the city's ground on a 4 m grid of 2049 x 2049 (GRD1), streets graded level across
+#   Web/data/ground.bin.gz     the city's ground on a 6 m grid of 2049 x 2049 (GRD1), streets graded level across
 #                              their width at their centreline's height, with a short slope to the ground each side
 #   Web/data/elevation.bin.gz  the 10 m heights (ELV2) around it, made again from these where they cover it
 #   Web/data/river.bin.gz      the river's levels (RIV1) made again over the new heights
 # The game draws its ground as a mesh of right triangles fitted to the 4 m grid (terrain.js) and lays every street,
-# sidewalk and lawn on those same triangles.
+# sidewalk and lawn on those same triangles. The grid covers the whole of the city's limits (12.3 km a side).
 # Run: .lamp/reference/venv/bin/python -I Assets/Tools/build-ground.py <app folder> [--out-suffix=-new]
 import glob, gzip, json, math, os, struct, sys
 import numpy as np
@@ -15,19 +15,20 @@ ROOT = sys.argv[1]
 SUFFIX = next((a.split('=', 1)[1] for a in sys.argv[2:] if a.startswith('--out-suffix=')), '')
 DEM = os.path.join(ROOT, '.lamp/reference/dem1m')
 DATA = os.path.join(ROOT, 'Web/data')
-STEP, N = 4.0, 2049
-# The grid's corner: the city's land (about x -2750..4550, z -3130..3050) with room round it, 2 m off the 1 m
-# squares' edges so each sample is the middle of a 4 x 4 block of them
-GX0, GZ0 = -3102.0, -3450.0
+STEP, N = 6.0, 2049
+S_ = int(STEP)
+# The grid's corner: the city's limits (about x -4220..5900, z -4890..6330) in the middle, each sample the middle of
+# a 6 x 6 block of the 1 m squares
+GX0, GZ0 = -5304.0, -5424.0
 WALK = 5.0  # metres beyond a street's edge kept at its height too: its sidewalk, level across, so a bank
 # behind a sidewalk rises from the sidewalk's back edge instead of tilting the sidewalk up it
 SHOULDER = 6.0  # metres beyond that to where the ground is its own again
 
 # --- The 10 m heights there are now (ELV2), for what the 1 m squares don't cover and for the base they're measured from
 eb = gzip.open(os.path.join(DATA, 'elevation.bin.gz')).read()
-ex0, ez0, estep, ecols, erows, _ = struct.unpack('<6f', eb[4:28])
+ex0, ez0, estep, ecols, erows, LO = struct.unpack('<6f', eb[4:28])  # LO: the lowest height, from which they're stored
 ecols, erows = int(ecols), int(erows)
-E = np.frombuffer(eb, '<u2', ecols * erows, 28).reshape(erows, ecols).astype(np.float64) / 100.0
+E = np.frombuffer(eb, '<u2', ecols * erows, 28).reshape(erows, ecols).astype(np.float64) / 100.0 + LO
 
 
 def bilinear(grid, x0, z0, step, x, z):
@@ -72,18 +73,18 @@ def at1m(x, z):
     return np.where(ok, h, np.nan)
 
 
-# --- The 4 m grid: each sample the mean of the 4 x 4 metres round it
+# --- The grid: each sample the mean of the STEP x STEP metres round it
 gx = GX0 + np.arange(N) * STEP
 gz = GZ0 + np.arange(N) * STEP
 H = np.full((N, N), np.nan)
-c0, r0 = int(GX0 - 2 - MX0), int(GZ0 - 2 - MZ0)
+c0, r0 = int(GX0 - S_ // 2 - MX0), int(GZ0 - S_ // 2 - MZ0)
 # blocks of the picture that line up with the grid's samples
-cols_in = [(i, c0 + i * 4) for i in range(N) if 0 <= c0 + i * 4 and c0 + i * 4 + 4 <= M.shape[1]]
-rows_in = [(j, r0 + j * 4) for j in range(N) if 0 <= r0 + j * 4 and r0 + j * 4 + 4 <= M.shape[0]]
+cols_in = [(i, c0 + i * S_) for i in range(N) if 0 <= c0 + i * S_ and c0 + i * S_ + S_ <= M.shape[1]]
+rows_in = [(j, r0 + j * S_) for j in range(N) if 0 <= r0 + j * S_ and r0 + j * S_ + S_ <= M.shape[0]]
 i0, i1 = cols_in[0][0], cols_in[-1][0] + 1
 j0, j1 = rows_in[0][0], rows_in[-1][0] + 1
-blk = M[rows_in[0][1]:rows_in[-1][1] + 4, cols_in[0][1]:cols_in[-1][1] + 4]
-blk = blk.reshape(j1 - j0, 4, i1 - i0, 4)
+blk = M[rows_in[0][1]:rows_in[-1][1] + S_, cols_in[0][1]:cols_in[-1][1] + S_]
+blk = blk.reshape(j1 - j0, S_, i1 - i0, S_)
 with np.errstate(invalid='ignore'):
     H[j0:j1, i0:i1] = np.nanmean(blk, axis=(1, 3))
 # The base the 10 m heights are measured from (their lowest half percent in town), so both agree
@@ -196,7 +197,7 @@ before = H.copy()
 H[on] = H[on] + (tsum[on] / wsum[on] - H[on]) * wmax[on]
 print(f'{graded} streets graded: {on.mean() * 100:.1f}% of the grid moved, by {np.percentile(np.abs(H - before)[on], 95):.2f} m at the 95th percentile')
 
-H = np.clip(H, 0, 600)
+H = np.clip(H, LO, 600)
 cm = np.round(H * 100).astype(np.int64)
 # each sample less the one before it (the grid read row by row), which packs far smaller
 delta = np.diff(cm.ravel(), prepend=0).astype('<i2')
@@ -205,7 +206,7 @@ with gzip.open(os.path.join(DATA, f'ground{SUFFIX}.bin.gz'), 'wb', 9) as f:
     f.write(hdr + delta.tobytes())
 print('ground', N, 'x', N, 'at', STEP, 'm,', os.path.getsize(os.path.join(DATA, f'ground{SUFFIX}.bin.gz')) // 1024, 'KB')
 
-# --- The 10 m heights made again from the 4 m grid where it covers them (so the outskirts meet it, and the shaders that
+# --- The 10 m heights made again from the fine grid where it covers them (so the outskirts meet it, and the shaders that
 # read the heights see these)
 EX, EZ = np.meshgrid(ex0 + np.arange(ecols) * estep, ez0 + np.arange(erows) * estep)
 cover = (EX >= GX0) & (EX <= GX0 + (N - 1) * STEP) & (EZ >= GZ0) & (EZ <= GZ0 + (N - 1) * STEP)
@@ -217,7 +218,7 @@ from_edge = np.minimum.reduce([EX - GX0, GX0 + (N - 1) * STEP - EX, EZ - GZ0, GZ
 wt = np.clip(from_edge / 100, 0, 1) * cover
 E2 = E + (fine - E) * wt
 with gzip.open(os.path.join(DATA, f'elevation{SUFFIX}.bin.gz'), 'wb', 9) as f:
-    f.write(eb[:28] + np.round(np.clip(E2, 0, 600) * 100).astype('<u2').tobytes())
+    f.write(eb[:28] + np.round((np.clip(E2, LO, 600) - LO) * 100).astype('<u2').tobytes())
 print('elevation', os.path.getsize(os.path.join(DATA, f'elevation{SUFFIX}.bin.gz')) // 1024, 'KB')
 
 # --- The river's levels over the new heights (as build-annarbor.py makes them): the lowest ground within 40 m, a little
@@ -236,9 +237,9 @@ for _ in range(3):
     p = np.pad(lvl, 1, mode='edge')
     lvl = np.minimum(sum(p[oy:oy + lvl.shape[0], ox:ox + lvl.shape[1]] for oy in range(3) for ox in range(3)) / 9, low - 0.45)
 oy, ox = lr0 - max(0, lr0 - pad), lc0 - max(0, lc0 - pad)
-lvl = np.clip(lvl[oy:oy + lrows, ox:ox + lcols], 0, 600)
+lvl = np.clip(lvl[oy:oy + lrows, ox:ox + lcols], LO, 300)
 n = rdcols * rdrows
 body = river[:44 + n + (n % 2)]
 with gzip.open(os.path.join(DATA, f'river{SUFFIX}.bin.gz'), 'wb', 9) as f:
-    f.write(body + np.round(lvl * 100).astype('<u2').tobytes())
+    f.write(body + np.round(lvl * 100).astype('<i2').tobytes())
 print('river levels', lcols, 'x', lrows, os.path.getsize(os.path.join(DATA, f'river{SUFFIX}.bin.gz')) // 1024, 'KB')

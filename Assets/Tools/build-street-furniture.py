@@ -22,7 +22,7 @@ A, E2 = 6378137.0, 6.69437999014e-3
 phi = math.radians(LAT0)
 KX = math.pi / 180 * A / math.sqrt(1 - E2 * math.sin(phi) ** 2) * math.cos(phi)
 KY = math.pi / 180 * A * (1 - E2) / (1 - E2 * math.sin(phi) ** 2) ** 1.5
-BBOX = (42.252, -83.782, 42.308, -83.693)  # S, W, N, E: the city the game builds
+BBOX = (42.21716, -83.80706, 42.32916, -83.66934)  # S, W, N, E: the city's limits and a margin (fetch-annarbor.py)
 
 
 def xz(lon, lat):

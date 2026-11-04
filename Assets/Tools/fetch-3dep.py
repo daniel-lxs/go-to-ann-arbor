@@ -12,8 +12,8 @@ A, E2 = 6378137.0, 6.69437999014e-3
 phi = math.radians(LAT0)
 KX = math.pi / 180 * A / math.sqrt(1 - E2 * math.sin(phi) ** 2) * math.cos(phi)
 KY = math.pi / 180 * A * (1 - E2) / (1 - E2 * math.sin(phi) ** 2) ** 1.5
-# the city's land (build-annarbor.py LAND, about -2750..4550 by -3130..3050) and a margin round it, in whole kilometres
-CX0, CX1, CZ0, CZ1 = -4000, 6000, -4000, 4000
+# the city's limits (about x -4220..5900, z -4890..6330) and the ground grid round them (build-ground.py), in whole kilometres
+CX0, CX1, CZ0, CZ1 = -6000, 7000, -6000, 7000
 SERVICE = 'https://elevation.nationalmap.gov/arcgis/rest/services/3DEPElevation/ImageServer/exportImage'
 
 

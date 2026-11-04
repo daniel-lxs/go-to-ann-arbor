@@ -22,7 +22,7 @@ KX = math.pi / 180 * A / math.sqrt(1 - E2 * math.sin(phi) ** 2) * math.cos(phi)
 KY = math.pi / 180 * A * (1 - E2) / (1 - E2 * math.sin(phi) ** 2) ** 1.5
 def xz(lon, lat):
     return ((lon - LON0) * KX, -(lat - LAT0) * KY)
-BBOX = (42.252, -83.782, 42.308, -83.693)  # S, W, N, E: the map
+BBOX = (42.21716, -83.80706, 42.32916, -83.66934)  # S, W, N, E: the city's limits and a margin (fetch-annarbor.py)
 X0, Z1 = xz(BBOX[1], BBOX[0])
 X1, Z0 = xz(BBOX[3], BBOX[2])
 def inside(x, z, m=0):
