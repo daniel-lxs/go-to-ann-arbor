@@ -49,7 +49,7 @@ the city's inventory, traffic and people; Michigan Stadium ("the Big House") mod
   the tail stepping out) lay fading rubber streaks and white tire smoke (skid-effects.js). The player's own car is a
   maize sports car with GO BLU plates (OWN_CAR). The field has its yard numbers and goal arrows (landmarks.js).
 - **Two wheels and boards** (motorcycles.js): sport bikes, cruisers, scooters, tourers and adventure bikes, plus
-  bicycles, e-bikes (battery on the down tube, rear hub motor, fenders and rack; ridden to 28 mph), e-scooters and hoverboards, each a procedural model of smooth lofted shells (`loftGeometry`), real
+  bicycles, e-bikes (about one in sixteen of traffic, the commonest curb rider: traffic.js gives every twentieth slot to one besides the curb riders' turn; battery on the down tube, rear hub motor, fenders and rack; ridden to 28 mph), e-scooters and hoverboards, each a procedural model of smooth lofted shells (`loftGeometry`), real
   wheels (cast, wire or disc, with rotors), one mesh per kind for traffic. Riders are the town's skinned people
   (`PersonRig.perch` in pedestrians.js, posed from `motoRiderPose(kind)`, drawn through a `PersonCrowd` in traffic.js
   within RIDER_DISTANCE) wearing a real helmet (`buildHelmetGeometry`, full, open-face or bicycle by `HELMET_OF`). Motorbikes ride in lanes
