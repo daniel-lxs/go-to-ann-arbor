@@ -76,6 +76,17 @@ _lim = unary_union([Polygon([xz(lon, lat) for lon, lat, *_ in p.exterior.coords]
 LIMITS = unary_union([Polygon(p.exterior) for p in parts(_lim)])
 LAND = max(parts(LIMITS.buffer(120, join_style=2).buffer(-40).buffer(40).simplify(4)), key=lambda p: p.area)
 LAND = Polygon(LAND.exterior)
+# and Ann Arbor Municipal Airport, south of the limits, with all of its fence (Web/js/airport-data.js, build-airport.py)
+# and the roads along it (W Ellsworth Rd, S State St): the town's south end from z 4400 down is squared off round it
+# (the hull of the two), so the airport is part of town rather than hung off it, down to z 7200, inside the fine
+# ground's grid (build-ground.py, to z 7218)
+_src = open(os.path.join(ROOT, 'Web/js/airport-data.js')).read()
+_ap = json.loads(_src[_src.index('{'):_src.rindex('}') + 1])
+FENCE = Polygon([(_ap['bounds'][i], _ap['bounds'][i + 1]) for i in range(0, len(_ap['bounds']), 2)]).buffer(0)
+_fb = FENCE.bounds
+SOUTH = unary_union([LAND.intersection(box(-9000, 4400, 9000, 9000)), box(_fb[0] - 60, _fb[1] - 60, _fb[2] + 60, 7200)]).convex_hull
+SOUTH = SOUTH.intersection(box(-9000, 4400, 9000, 7200))
+LAND = Polygon(max(parts(unary_union([LAND, SOUTH]).buffer(30, join_style=2).buffer(-30, join_style=2).simplify(4)), key=lambda p: p.area).exterior)
 LAND_P = prep(LAND)
 X0, Z0, X1, Z1 = [math.floor(v) if i < 2 else math.ceil(v) for i, v in enumerate(LAND.bounds)]
 # The middle of town, drawn at full detail (downtown, campus, Kerrytown, the Old West Side, Burns Park, the big parks,
@@ -440,6 +451,8 @@ for e in ways + rels:
     if g.is_empty or g.area < 200:
         continue
     GREEN.append({'name': t.get('name', ''), 'kind': kind, 'geom': g})
+# the airfield's grass, as a park (no sidewalks or yards; airport.js paves its runways, taxiways and aprons over it)
+GREEN.append({'name': 'Ann Arbor Municipal Airport', 'kind': 'park', 'geom': FENCE.intersection(LAND)})
 parks_union = unary_union([g['geom'] for g in GREEN]) if GREEN else Polygon()
 print(f'{len(GREEN)} green spaces, {parks_union.area / 1e6:.2f} km2')
 
@@ -472,7 +485,7 @@ for f in bj['features']:
         continue
     geom = make_valid(MultiPolygon(shp) if len(shp) > 1 else shp[0])
     c = geom.representative_point()
-    if not LAND.contains(c) or geom.area < 12:
+    if not LAND.contains(c) or geom.area < 12 or FENCE.contains(c):  # the airport's are airport.js's own
         continue
     pr = f['properties']
     h = (pr.get('ABG_BLD_HG') or 0) * 0.3048

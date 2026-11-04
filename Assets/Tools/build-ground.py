@@ -19,7 +19,7 @@ STEP, N = 6.0, 2049
 S_ = int(STEP)
 # The grid's corner: the city's limits (about x -4220..5900, z -4890..6330) in the middle, each sample the middle of
 # a 6 x 6 block of the 1 m squares
-GX0, GZ0 = -5304.0, -5424.0
+GX0, GZ0 = -5304.0, -5070.0
 WALK = 5.0  # metres beyond a street's edge kept at its height too: its sidewalk, level across, so a bank
 # behind a sidewalk rises from the sidewalk's back edge instead of tilting the sidewalk up it
 SHOULDER = 6.0  # metres beyond that to where the ground is its own again

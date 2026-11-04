@@ -39,6 +39,8 @@ limits = unary_union([shape(f['geometry']) for f in json.load(open(BOUNDARY))['f
 W, S, E, N = limits.bounds
 # about 600 m round the limits: the streets that leave town, and what the edge's lawn border meets
 S, W, N, E = S - 0.0055, W - 0.0075, N + 0.0055, E + 0.0075
+# and south far enough for all of Ann Arbor Municipal Airport and the town's squared-off south end (build-annarbor.py)
+S = min(S, 42.2125)
 BB = f'{S:.5f},{W:.5f},{N:.5f},{E:.5f}'
 print('box', BB)
 
