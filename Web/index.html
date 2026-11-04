@@ -87,6 +87,8 @@
       <symbol id="i-sound" viewBox="0 0 24 24"><path d="m11 4-5 4H3v8h3l5 4V4ZM15 8a6 6 0 0 1 0 8M18 5a10 10 0 0 1 0 14"/></symbol>
       <symbol id="i-sound-off" viewBox="0 0 24 24"><path d="m11 4-5 4H3v8h3l5 4V4ZM16 9l6 6M22 9l-6 6"/></symbol>
       <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m7 9.5 5 5 5-5"/></symbol>
+      <symbol id="i-earbuds" viewBox="0 0 24 24"><path d="M7 4.5a3 3 0 0 1 3 3v1.5a2 2 0 0 1-2 2v8M17 4.5a3 3 0 0 0-3 3v1.5a2 2 0 0 0 2 2v8"/><circle cx="7.2" cy="7.5" r="2.4"/><circle cx="16.8" cy="7.5" r="2.4"/></symbol>
+      <symbol id="i-radio" viewBox="0 0 24 24"><path d="M4 9h16v11H4zM6 9l12-5"/><circle cx="9" cy="14.5" r="2.5"/><path d="M14 13h4M14 16h4"/></symbol>
       <symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="M14.5 6.5 9 12l5.5 5.5"/></symbol>
       <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9.5 6.5 5.5 5.5-5.5 5.5"/></symbol>
       <symbol id="i-camera" viewBox="0 0 24 24"><rect x="2.8" y="6.5" width="12.4" height="11" rx="2.4"/><path d="m15.2 10.4 6-3.4v10l-6-3.4"/></symbol>
@@ -257,6 +259,19 @@
           <svg class="icon" aria-hidden="true"><use href="#i-camera"/></svg><span id="hud-active-camera">3rd-Person Chase</span><kbd data-key="KeyV" data-pad="Y">V</kbd>
         </button>
         <button id="cam-next" class="icon-btn" type="button" title="Next camera [V]" aria-label="Next camera">
+          <svg class="icon" aria-hidden="true"><use href="#i-chevron-right"/></svg>
+        </button>
+      </div>
+      <div id="car-radio" class="camera-switch car-radio" hidden>
+        <button id="radio-prev" class="icon-btn" type="button" title="Previous station" aria-label="Previous station">
+          <svg class="icon" aria-hidden="true"><use href="#i-chevron-left"/></svg>
+        </button>
+        <button id="radio-current" class="camera-current radio-current" type="button" title="Next station [R]">
+          <svg class="icon" aria-hidden="true"><use href="#i-radio"/></svg>
+          <span class="radio-text"><span id="radio-station">Radio off</span><span id="radio-now">Ann Arbor stations</span></span>
+          <kbd data-key="KeyR" data-pad="RIGHT">R</kbd>
+        </button>
+        <button id="radio-next" class="icon-btn" type="button" title="Next station [R]" aria-label="Next station">
           <svg class="icon" aria-hidden="true"><use href="#i-chevron-right"/></svg>
         </button>
       </div>

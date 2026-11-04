@@ -1,4 +1,5 @@
 import Foundation
+import AVFoundation
 #if os(macOS)
 import AppKit
 #else
@@ -71,6 +72,26 @@ enum Native {
             #endif
             return url.lastPathComponent
         }
+        /// The car radio: a local station's live stream, played here (the page's sound can't play a live stream).
+        /// Only the stations' own stream hosts.
+        LampNative.on("radioPlay") { args in
+            guard let text = args["url"] as? String, let url = URL(string: text), url.scheme == "https",
+                  let host = url.host, Radio.allows(host) else { throw LampNative.Failure("not a station") }
+            Radio.play(url, volume: Float(args["volume"] as? Double ?? 0.6))
+            return true
+        }
+        LampNative.on("radioStop") { _ in
+            Radio.stop()
+            return true
+        }
+        LampNative.on("radioVolume") { args in
+            Radio.player?.volume = Float(args["volume"] as? Double ?? 0.6)
+            return true
+        }
+        /// What the station says is on now (its stream's title), or ""
+        LampNative.on("radioNow") { _ in
+            Radio.title
+        }
         /// How much memory this device has, in gigabytes: the page builds less of the city on one with 16 GB or less
         LampNative.on("memory") { _ in
             Double(ProcessInfo.processInfo.physicalMemory) / 1_073_741_824
@@ -82,4 +103,54 @@ enum Native {
 @MainActor enum Recording {
     static var handle: FileHandle?
     static var url: URL?
+}
+
+/// The car radio's one live stream
+@MainActor enum Radio {
+    static var player: AVPlayer?
+    static var title = ""
+    private static var reader: TitleReader?
+
+    static func allows(_ host: String) -> Bool {
+        host == "playerservices.streamtheworld.com" || host.hasSuffix(".live.streamtheworld.com") || host == "floyd.wcbn.org"
+    }
+
+    static func play(_ url: URL, volume: Float) {
+        #if os(iOS)
+        try? AVAudioSession.sharedInstance().setCategory(.playback, options: [.mixWithOthers])
+        try? AVAudioSession.sharedInstance().setActive(true)
+        #endif
+        stop()
+        let asset = AVURLAsset(url: url, options: ["AVURLAssetHTTPHeaderFieldsKey": ["User-Agent": "GoToAnnArbor/1.0"]])
+        let item = AVPlayerItem(asset: asset)
+        let reader = TitleReader()
+        let output = AVPlayerItemMetadataOutput(identifiers: nil)
+        output.setDelegate(reader, queue: .main)
+        item.add(output)
+        self.reader = reader
+        let player = AVPlayer(playerItem: item)
+        player.volume = volume
+        player.automaticallyWaitsToMinimizeStalling = true
+        player.play()
+        self.player = player
+    }
+
+    static func stop() {
+        player?.pause()
+        player?.replaceCurrentItem(with: nil)
+        player = nil
+        reader = nil
+        title = ""
+    }
+}
+
+/// Reads the stream's titles as they come (StreamTheWorld and Icecast send "Artist - Song" between songs)
+final class TitleReader: NSObject, AVPlayerItemMetadataOutputPushDelegate {
+    func metadataOutput(_ output: AVPlayerItemMetadataOutput, didOutputTimedMetadataGroups groups: [AVTimedMetadataGroup],
+                        from track: AVPlayerItemTrack?) {
+        for item in groups.flatMap(\.items) where item.commonKey == .commonKeyTitle || item.identifier?.rawValue.contains("StreamTitle") == true {
+            guard let text = item.stringValue?.trimmingCharacters(in: .whitespaces) else { continue }
+            Task { @MainActor in Radio.title = text }
+        }
+    }
 }
