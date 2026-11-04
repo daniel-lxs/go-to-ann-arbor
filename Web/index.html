@@ -254,12 +254,36 @@
   <div class="hud hud-bottom-right">
     <section id="hud-cluster" class="panel cluster" aria-label="Vehicle telemetry and camera">
       <div class="gauge">
-        <div class="gauge-top">
-          <span id="hud-active-mode" class="gauge-label">Car</span>
-          <span class="gauge-alt"><span class="gauge-alt-label">Alt</span> <span id="hud-altitude">0</span> ft</span>
-        </div>
-        <div class="gauge-speed"><span id="hud-speed">0</span><span class="gauge-unit">mph</span></div>
-        <div class="gauge-meter" aria-hidden="true"><span id="hud-speed-meter"></span></div>
+        <svg id="dial" class="dial" viewBox="0 0 200 200" role="img" aria-label="Speedometer">
+          <defs>
+            <radialGradient id="dial-face" cx="50%" cy="42%" r="62%">
+              <stop offset="0" stop-color="#23262b"/><stop offset="0.75" stop-color="#121417"/><stop offset="1" stop-color="#0a0b0d"/>
+            </radialGradient>
+            <linearGradient id="dial-bezel" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#6b6e73"/><stop offset="0.45" stop-color="#2a2c30"/><stop offset="1" stop-color="#4a4c50"/>
+            </linearGradient>
+            <radialGradient id="dial-glass" cx="35%" cy="22%" r="75%">
+              <stop offset="0" stop-color="#fff" stop-opacity="0.13"/><stop offset="0.5" stop-color="#fff" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+          <circle cx="100" cy="100" r="99" fill="url(#dial-bezel)"/>
+          <circle cx="100" cy="100" r="94" fill="#050506"/>
+          <circle cx="100" cy="100" r="92" fill="url(#dial-face)"/>
+          <g id="dial-ticks"></g>
+          <text id="hud-active-mode" class="dial-mode" x="100" y="72" text-anchor="middle">Car</text>
+          <text id="hud-speed" class="dial-speed" x="100" y="138" text-anchor="middle">0</text>
+          <text class="dial-unit" x="100" y="152" text-anchor="middle">MPH</text>
+          <text class="dial-alt" x="100" y="168" text-anchor="middle"><tspan class="dial-alt-label">ALT </tspan><tspan id="hud-altitude">0</tspan> ft</text>
+          <text class="dial-gear" x="100" y="168" text-anchor="middle"><tspan id="hud-gear">N</tspan><tspan class="dial-alt-label"> · </tspan><tspan id="hud-rpm">780</tspan><tspan class="dial-alt-label"> RPM</tspan></text>
+          <g id="hud-speed-meter" class="dial-needle">
+            <path d="M100 100 L97.6 104 L100.4 104 Z M99 104 L99 108 L101 108 L101 104 Z" fill="#ff5a1f"/>
+            <path d="M98.6 108 L100 14 L101.4 108 Z" fill="#ff5a1f"/>
+            <path d="M99.4 100 L100 16 L100.6 100 Z" fill="#ffb08c" opacity="0.55"/>
+          </g>
+          <circle cx="100" cy="100" r="7" fill="#1b1d21" stroke="#55585d" stroke-width="1.5"/>
+          <circle cx="100" cy="100" r="2.4" fill="#0a0b0d"/>
+          <circle cx="100" cy="100" r="92" fill="url(#dial-glass)" pointer-events="none"/>
+        </svg>
       </div>
       <div id="camera-switch" class="camera-switch">
         <button id="cam-prev" class="icon-btn" type="button" title="Previous camera" aria-label="Previous camera">

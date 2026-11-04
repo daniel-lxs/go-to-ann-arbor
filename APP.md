@@ -2,7 +2,7 @@ Kind: game, drawn with three.js (Lamp's runtime in Web/lamp-game.js), at home on
 Look: a sunlit 3D Ann Arbor, Michigan at true scale (brick downtown, campus limestone, leafy neighborhoods, the Huron
 River, Michigan maize #FFCB05 and blue #00274C on the Big House), with a translucent dark heads-up display over it: the
 place and street at the bottom left over a minimap, the modes (Walk, Drive, Cycle, Fly, Paddle) at the bottom, the vehicle and
-its speed at the bottom right, and time of day, Teleport, Map and sound at the top right.
+its speed at the bottom right as a round analog dial (bezel, ticks, numbers and an orange needle, redline on the car and helicopter; `buildDial` in main.js draws the scale for each mode, `#dial` in index.html and `.dial` in style.css), and time of day, Teleport, Map and sound at the top right.
 
 # Ann Arbor
 
