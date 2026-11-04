@@ -30,6 +30,7 @@ It's a web page with no build step: serve `Web/` with any static web server and 
 - Uses [Terrain Tiles](https://registry.opendata.aws/terrain-tiles/) by Mapzen, USGS, LicenseRef-USGS-Public-Domain
 - Uses [MTA Subway Entrances and Exits](https://data.ny.gov/Transportation/MTA-Subway-Entrances-and-Exits-2024/i9wp-a4ja) by Metropolitan Transportation Authority, LicenseRef-NY-Open-Data
 - Uses [ambientCG materials](https://ambientcg.com) by ambientCG (Lennart Demes), CC0-1.0
+- Uses [3D Elevation Program (3DEP) 1 m bare-earth elevation model](https://www.usgs.gov/3d-elevation-program) by U.S. Geological Survey, LicenseRef-US-Government-Public-Domain
 - Uses [AAGIS Building Footprints](https://ckan.a2gov.org/dataset/building-footprints) by City of Ann Arbor, None
 - Uses [Street Trees](https://a2gov.org/services/data-catalog) by City of Ann Arbor, None
 - Uses [2023 Impervious Surfaces](https://a2maps.a2gov.org/a2arcgis/rest/services/ImperviousSurfaces/MapServer/7) by City of Ann Arbor, None
@@ -54,7 +55,6 @@ It's a web page with no build step: serve `Web/` with any static web server and 
 - Uses [Snow depth (Open-Meteo)](https://open-meteo.com) by Open-Meteo.com, CC-BY-4.0
 - Uses [Mapillary street-level imagery (decides house and shopfront looks; no photos ship)](https://www.mapillary.com) by Mapillary contributors, CC-BY-SA-4.0
 - Uses [Parcels with assessor's year built and storeys](https://a2maps.a2gov.org/a2arcgis/rest/services/WaterServiceLeadMaterialAll/MapServer/3) by City of Ann Arbor, None
-- Uses [GPU and memory optimizations (pull request #1)](https://github.com/kcm/go-to-ann-arbor/tree/perf/gpu-and-memory-optimizations) by Ken MacInnis, at commit `1bf1070944c7`
 
 Map data is ODbL-1.0: it stays under that license, credited, in this remix.
 
@@ -63,6 +63,8 @@ NYC Open Data is used under its own terms (LicenseRef-NYC-Open-Data).
 Terrain Tiles is used under its own terms (LicenseRef-USGS-Public-Domain).
 
 MTA Subway Entrances and Exits is used under its own terms (LicenseRef-NY-Open-Data).
+
+3D Elevation Program (3DEP) 1 m bare-earth elevation model is used under its own terms (LicenseRef-US-Government-Public-Domain).
 
 AAGIS Building Footprints is used under its own terms (None).
 

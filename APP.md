@@ -26,8 +26,8 @@ the city's inventory, traffic and people; Michigan Stadium ("the Big House") mod
 - **Knocks and falls**: people, trees, signal and lamp poles and sign posts are solid (`obstacles` from
   street-details.js and traffic-controls.js, colliders marked `thin` so the helicopter ignores them). A person the
   player hits at speed goes limp: a 16-point Verlet ragdoll (`startRagdoll`, `stepRagdoll`, `solveRagdoll` in
-  pedestrians.js, driven by `strike` in pedestrian-system.js), who then gets up through the dive's recovery, or is
-  cleared once out of sight. A cyclist hitting something hard, or the player struck by a car, falls the same way
+  pedestrians.js, driven by `strike` in pedestrian-system.js), who always gets back up a few seconds after coming to rest, through the dive's recovery, and steps back to their way
+  (nobody stays down; one flung far off out of sight just goes home). A cyclist hitting something hard, or the player struck by a car, falls the same way
   (`knockDown`, `throwRider` in controllers.js), then stands up; a 'thud' cue and rumble go with each hit.
   A car hitting a tree, pole or sign post hard enough knocks it over (knockdowns.js): the speed it takes grows with
   a tree's trunk and falls with the car's mass; it tips about its foot the way the car went, lands with a thud or
@@ -115,8 +115,12 @@ the city's inventory, traffic and people; Michigan Stadium ("the Big House") mod
   - The ground: `terrain.js`. The city is built flat at street level (y = 0) and then set on the real ground's heights:
     `groundHeight(x, z)` is the one answer to "how high is the ground here", and everything asks it. `setOnTerrain`
     (called in main.js once the city is built) cuts the ground layers finer where the ground bends and lays them on
-    it, and lifts whatever stands on it whole; buildings stand on the lowest ground under their outline (in
-    `buildings.js`, which lifts their colliders, details and billboards with them) and landmarks under their lot
+    it, and lifts whatever stands on it whole; buildings and churches stand on the highest ground
+    under their outline, so no door is buried uphill, and houses on the mean ground under it, the uphill lawn reaching
+    at most 70 cm up the wall (`UPHILL`), and on a steep bank the floor at most 80 cm over the lowest lawn
+    (`DOWNHILL`), the uphill side dug in up to 1.5 m (`BANKED`), so the 1 m survey's real banks don't stand every house on a flight of steps, with their walls and foundations reaching down past the lowest
+    (`minGround`; Ken MacInnis's pull request #2: houses.js steps and stoops follow the lawn down, the facade shader
+    leaves the foundation below floor 0 plain; `buildings.js` lifts their colliders, details and billboards with them) and landmarks under their lot
     (`groundUnder`), and the facade shader counts storeys from there (the `ground` attribute of `createFacadeBoxes` and
     `createBuildingFootprints`).
     The cutting is the slowest part of a start, so it's done once and saved: the height maths and the cut itself are
@@ -124,12 +128,16 @@ the city's inventory, traffic and people; Michigan Stadium ("the Big House") mod
     first, so the one road quad over the town is shared out too); the draped layers, already in 800 m tiles, are saved
     in IndexedDB (a database per city part, `ground-layers-<part>`), keyed by a fingerprint of the heights, river,
     bridges, the cutting code and each layer's own geometry, and read back on later starts. setOnTerrain answers a
-    promise when it has layers to cut; main.js awaits it in the grid and street-details parts. Ground layers are cut at
-    16 cm down to 5 m edges (the road markings sit 10 cm over the road surface, `road-paint.js`). A layer stacked over another
-    must sit more than that above it, or the one under shows through on slopes as long wedges: the lawns (LAWN_Y 0.34)
-    are 12 cm over the sidewalk slab (SW_TOP 0.22) that fills each block under them. Driveways and front walks, a few mm over the
-    lawn, are drawn in front of it with `drawOver` (terrain.js: each vertex pulled along its line of sight, so only its
-    depth changes) instead of a real lift. Driveway aprons (small, four
+    promise when it has layers to cut; main.js awaits it in the grid and street-details parts. Under the city the
+    ground is one mesh of right triangles (RTIN, `ground-core.js`) over `data/ground.bin.gz`, a 4 m grid within 10 cm
+    (25 cm in its smallest triangles), and every flat layer (road, sidewalks, lawns, driveways, paint) is cut along
+    those same triangles, so each is the ground plus a fixed lift and none can cross another. The lifts are real
+    heights (`ground-lifts.js`: paint 5 mm, curb 15 cm, slab 16 cm, lawn 18 cm). Driveways and front walks are drawn
+    in front of the lawn with `drawOver` (terrain.js: each vertex pulled along its line of sight, so only its depth
+    changes) only so they don't flicker far off. Streets are graded level across their width at their centerline
+    height, the 5 m of sidewalk beside them level too (`WALK`), with a short bank to the ground behind it, by build-ground.py; a street's ends are pinned to the
+    surveyed height at each crossing. The layers' normals and colours are packed to bytes, so the finer cut costs no
+    more memory than the old one. Driveway aprons (small, four
     corners) are always concrete, so the sidewalk never shows a blacktop patch. Pavings with holes (the walk webs of the Diag and the quads) are
     concrete too; only wide paved yards are always blacktop. The map's footpaths (golf.js `buildTrails`) are the same concrete and draw over the lawn but
     under that paving (`drawOver` 3 cm vs 6 cm), since they run a little off the surveyed walks. The preview has no lasting
@@ -171,8 +179,10 @@ discharge in cubic feet a second, asked for with the weather; public domain; the
   heights; https://ckan.a2gov.org/dataset/building-footprints), OSM heights where it has them.
 - `Web/js/tree-geodata.bin.gz`: the City of Ann Arbor's street tree inventory. It states no license: fine to use here,
   but ask the city before publishing or sharing the game widely.
-- `Web/data/elevation.bin.gz` (also from build-annarbor.py): ground heights from the open Terrain Tiles on AWS (Mapzen, USGS 3DEP), relative to the
-  lowest ground in the box (downtown is about 28 m up, the river lowest).
+- `Web/data/elevation.bin.gz`, `ground.bin.gz` and `river.bin.gz`: made at build time only by
+  `Assets/Tools/build-ground.py` from the USGS 3DEP 1 m bare-earth model (fetched by `Assets/Tools/fetch-3dep.py`,
+  public domain), with the open Terrain Tiles beyond its cover; heights relative to the lowest ground in the box
+  (downtown is about 28 m up, the river lowest). Run `build-ground.py <app folder>` again after changing the streets.
 
 Houses (survey kind 1 under 14 m, and small sheds and garages) are drawn by `houses.js`, not the facade shaders. Each
 footprint is split (rasterised at 0.5 m in its oriented box) into a main block, the largest rectangle, and up to three
@@ -183,7 +193,7 @@ lower cross gables or lean-tos. Storeys come from the survey height (LiDAR avera
 `houseInfo`, `houseStyle`: material, trim and door/shutter colors from a small palette texture, foundation height):
 clapboard in an Ann Arbor palette, about one in five brick, some stone, stucco or shakes; sash windows, shutters on
 some, a colored door on the front wall, gable and dormer windows, a visible foundation. Porches (posts or craftsman
-brick piers, railings, a lean-to roof), steps, porch lights, shrubs and front walks to the street; railings, steps,
+brick piers, railings, a lean-to roof), steps, porch lights, shrubs and front walks that stop at the back of the sidewalk; railings, steps,
 shrubs and lights are instanced and culled by distance. Everything is seeded by the house's position.
 Residential blocks have a grass tree lawn between the curb and a
 narrow sidewalk (`TREE_LAWN` in the generator, drawn with the lawns); street trees stand in it without pits
@@ -192,13 +202,14 @@ Driveways (`GEO.driveways`, drawn in `city-grid.js` as blacktop or concrete) are
 Impervious Surfaces map (no license stated; https://a2maps.a2gov.org/a2arcgis/rest/services/ImperviousSurfaces/MapServer/7)
 on residential lots, less the buildings; from each end of a piece that comes near the curb (the city often maps a
 walk and its driveway as one piece, so each end is measured on its own) a strip runs out: a front walk
-(under 2.6 m across) to the sidewalk, a driveway (2.6 to 7 m) to just inside the curb, where a flared concrete ramp (`GEO.curbCuts`, city-grid.js) runs down over
+(under 1.9 m across, or up to 2.6 m when it leads back to a house rather than a garage: `leads_to_house`) to the
+back of the sidewalk, never over it, a driveway (2.6 to 7 m) to just inside the curb, where a flared concrete ramp (`GEO.curbCuts`, city-grid.js) runs down over
 the curb to the gutter. Only pieces that reach the street or a small building (a garage) are kept (back patios and
 stray bits read as dirt from above), and none in parks, whose paths are the trails; a piece that is nearly a rectangle is drawn as one, the rest simplified.
 Most are pale concrete; a quarter, and pieces over 120 m², are mid-gray blacktop.
 Trails (`GEO.trails`, OSM paths, footways, bike paths and tracks inside parks, woods, the cemetery and lawn blocks,
 not sidewalks or golf courses) are flat ribbons from `buildTrails` in `golf.js`: dirt for unpaved, gray paving else.
-Golf courses (`golf.js`, `GEO.golf`): striped fairways, greens with pins, tees, bunkers, cart paths. Railways
+Golf courses (`golf.js`, `GEO.golf`): fairways, tees and greens are the park lawn's own grass mown a little lighter in soft stripes (`createParkLawnMaterial(false, { width, lift })`), their outlines rounded off (`smooth`), greens with pins, bunkers, cart paths. Railways
 (`railways.js`, `GEO.rail`) lay track with ties and run trains that sound their horn (`audio-events.js`); cars and people ride on top of the
 track (`trackTop`, used by `getGroundHeight` in controllers.js) and trains are solid, immovable bodies to the car
 (`collideTrains`). Parked cars (`parked-cars.js`) fill parking-lot stalls and the curb parking lanes, never within
@@ -221,7 +232,8 @@ A park's or golf course's slab (an odd-shaped lawn block) is only its sidewalk r
 Parking lots (OSM) are striped by `parking-stripes.js`: an overlay whose stalls run off each lot's longest edge.
 Park, wood and yard trees (`GEO.woods`) fill the city's Urban Tree Canopy map
 (https://a2maps.a2gov.org/a2arcgis/rest/services/NaturalFeatures/MapServer/10, no license stated) about 7.5 m apart,
-plus OSM's mapped trees; playgrounds (OSM, `GEO.playgrounds`) get wood chips, a play tower and swings (`playgrounds.js`).
+plus OSM's mapped trees; every surveyed park tree is kept, at its surveyed size, and only canopy fill within 2.5 m
+of one is left out (`dropCanopyFill` in tree-placements.js), so the woods (Bird Hills, Barton) stay whole; playgrounds (OSM, `GEO.playgrounds`) get wood chips, a play tower and swings (`playgrounds.js`).
 A house wall the paving runs up to gets a garage door (`GEO.garageDoors`, single or double, drawn by the house shader).
 
 More from the generator, each in `GEO`:
@@ -253,7 +265,18 @@ More from the generator, each in `GEO`:
   street and turned to face it; its Park Amenities ("park-amenities"): benches, trash cans, picnic tables, grills,
   drinking fountains, bike racks and picnic shelters; and OSM `leisure=pitch` courts (tennis, basketball, pickleball,
   volleyball, soccer; indoor ones left out), painted with their lines, nets, hoops and goals and draped on the ground
-  (`street-details.js` section 6). Only the shelters cast shadows.
+  (`street-details.js` section 6). Only the shelters cast shadows. Benches and trash cans go flying when hit
+  (`throwThing` in knockdowns.js). OSM's `amenity=public_bookcase` points are Little Free Libraries, a post with a
+  little roofed box (Little Free Library publishes no open data).
+- Potholes (`potholes.js`, `data/potholes.json` from `Assets/Tools/build-potholes.py`): the open pothole reports in
+  the City's SeeClickFix 311 system (what a2potholes.com maps; fetched when the script is run, not live), each moved
+  from the curb onto the street beside it into the wheel path, bigger the longer it's been open; one instanced patch
+  of broken asphalt whose normals lean in. A wheel through one jolts the car or bike (`jolt`, after `carVertical` in
+  controllers.js) with rumble and a thud (`onPothole` in main.js).
+- Kayaks on the banks (`kayak-launches.js`): two or three pulled up on the grass by the river at each park it runs
+  through (Argo, Bandemer, Riverside, Island Park, Gallup, the Arb...); walking up to one and getting in (the car key)
+  puts the player's kayak in the water there facing downstream (`choice.beach` in main.js, `enterOrExit` in
+  controllers.js).
 - House numbers (`data/addresses.json`, `Assets/Tools/build-addresses.py`): the City of Ann Arbor's Address Points
   (ckan.a2gov.org "address-points", no license stated; download cached in .lamp/reference/aa/addr). `houses.js` gives
   each house with a front wall the number of the address point inside its footprint (else the nearest within a few
@@ -271,7 +294,8 @@ More from the generator, each in `GEO`:
   `setBuildingLooks`): how each house and shopfront really looks, decided once at build time; the game never calls
   the services and no photo ships. The assessor's year built and storey style (ranch, storey and a half, two storey,
   split level) from the City of Ann Arbor's parcels (WaterServiceLeadMaterialAll/MapServer/3 on a2maps.a2gov.org, no
-  license stated; owners not downloaded) are used as stated: storeys set a house's height and roof, and a house built
+  license stated; owners not downloaded) are used as stated, except a "ranch" whose floor area is 1.15 times its
+  ground area or more, which has an upstairs (1.5 storeys, 2 from 1.3 times; 918 Hutchins): storeys set a house's height and roof, and a house built
   before 1915 takes the historic districts' look. Each building's street photo is the Mapillary image (Mapillary
   contributors, CC BY-SA 4.0) that best faces it: in the camera's view (its lens distortion counted), its wall seen
   head-on within 50 m, no footprint and few street trees in between; it is cut to the building and sent with the

@@ -669,7 +669,26 @@ curb_tree = shapely.STRtree(curbs)
 aprons = []
 curb_cuts = []
 walks = 0
-def join_end(p, q):
+def leads_to_house(whole, near, ux, uz, tx, tz, cm, w):
+    """Whether a strip 1.9 to 2.6 m across is a wide front walk: followed back from the street it ends just short of
+    a house (its porch between), where a driveway that narrow ends at a garage or in the back yard"""
+    ox, oz = near.x + tx * cm, near.y + tz * cm
+    lane = Polygon([(ox + tx * w / 2 + ux, oz + tz * w / 2 + uz), (ox - tx * w / 2 + ux, oz - tz * w / 2 + uz),
+                    (ox - tx * w / 2 - ux * 30, oz - tz * w / 2 - uz * 30), (ox + tx * w / 2 - ux * 30, oz + tz * w / 2 - uz * 30)])
+    run = whole.intersection(lane)
+    if run.is_empty:
+        return False
+    piece = min(parts(run), key=lambda g: g.distance(near))
+    depth = max(-((x - ox) * ux + (z - oz) * uz) for x, z in piece.exterior.coords)
+    for back in (0.6, 1.5, 3.0):
+        pt = Point(ox - ux * (depth + back), oz - uz * (depth + back))
+        for k in bld_tree.query(pt):
+            if buildings[k]['geom'].area >= 90 and bld_geoms[k].contains(pt):
+                return True
+    return False
+
+
+def join_end(p, q, whole=None):
     """One paved end facing the street: a walk to the sidewalk or a driveway to the curb"""
     global walks
     near, curb_pt = nearest_points(p, q.exterior)
@@ -696,6 +715,8 @@ def join_end(p, q):
     if w > 7.2:  # a walk and driveway joined, or a wide pad: a driveway out from where it comes nearest
         t0, t1, w = -1.5, 1.5, 3.0
     walk = w < 1.9  # the map draws some single driveways barely 2 m wide
+    if not walk and w < 2.6 and whole is not None:
+        walk = leads_to_house(whole, near, ux, uz, tx, tz, (t0 + t1) / 2, w)
     stop = d - (SIDEWALK - 0.3) if walk else d - 0.25  # how far out from the paving's edge (a driveway's ramp does the rest)
     if stop < 0.3:
         return True  # already at the street
@@ -733,7 +754,7 @@ for i, p in enumerate(drive_parts):
     front = p.intersection(q.exterior.buffer(dmin + 3.0))
     ends = [e for e in parts(front) if e.area >= 1.0] if not front.is_empty else []
     for e in ends or [p]:
-        if join_end(e, q):
+        if join_end(e, q, p):
             joined.add(i)
 print(f'{walks} front walks joined to the sidewalk, {len(aprons) - walks} driveways to the curb')
 # Tidied for drawing: only paving that reaches the street, or a garage, stays (back patios, sheds' aprons and the

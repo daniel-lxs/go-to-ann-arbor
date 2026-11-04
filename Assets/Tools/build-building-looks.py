@@ -234,8 +234,13 @@ def assessor(b):
         return None
     p = P_PROPS[hits[0]]
     style = (p.get('resStyle') or '').split(',')[0].strip()
+    storeys = STOREYS.get(style)
+    # a "ranch" whose floor area is well over its ground area has an upstairs (918 Hutchins: 2145 over 1551 sq ft)
+    fa, ga = p.get('floorArea') or 0, p.get('groundArea') or 0
+    if storeys == 1 and ga and fa / ga >= 1.15:
+        storeys = 2 if fa / ga >= 1.3 else 1.5
     return {'pin': p.get('PIN'), 'parcel': hits[0], 'year_built': p.get('yearbuilt') or None,
-            'storeys': STOREYS.get(style), 'style': style or None, 'land_use': p.get('LANDUSE') or None,
+            'storeys': storeys, 'style': style or None, 'land_use': p.get('LANDUSE') or None,
             'floor_area_sqft': p.get('floorArea') or None, 'historic_district': p.get('HDC') or None}
 
 

@@ -6,7 +6,10 @@
 #                                               fountain, 5 bike rack, 6 picnic shelter
 #   courts     flat [sport, cx, cz, angle, length, width]   OpenStreetMap's leisure=pitch (ODbL), one entry per court:
 #                                               0 tennis, 1 basketball, 2 pickleball, 3 volleyball, 4 soccer
-# Inputs in .lamp/reference/aa: aa_hydrants.geojson, aa_parkamenities.geojson, osm.json (as build-annarbor.py fetched).
+#   libraries  flat [x, z]                      OpenStreetMap's amenity=public_bookcase (ODbL): Little Free Libraries
+#                                               and the like (Little Free Library itself publishes no open data)
+# Inputs in .lamp/reference/aa: aa_hydrants.geojson, aa_parkamenities.geojson, osm.json (as build-annarbor.py fetched),
+# osm-bookcases.json (Overpass: node/way["amenity"="public_bookcase"] in the city's box, `out center tags`).
 # Run: python -I Assets/Tools/build-street-furniture.py <app folder>
 import json, math, os, sys
 from shapely.geometry import Polygon
@@ -99,6 +102,13 @@ for e in json.load(open(os.path.join(REF, 'osm.json')))['elements']:
             courts += [sport, r1(cx + vx * oa + ux * ob), r1(cz + vz * oa + uz * ob), round(angle, 3),
                        r1(long_ / along), r1(short / across)]
 
-out = {'hydrants': hydrants, 'amenities': amenities, 'courts': courts}
+libraries = []
+for e in json.load(open(os.path.join(REF, 'osm-bookcases.json')))['elements']:
+    lat, lon = (e['lat'], e['lon']) if 'lat' in e else (e['center']['lat'], e['center']['lon'])
+    if inside(lon, lat):
+        x, z = xz(lon, lat)
+        libraries += [r1(x), r1(z)]
+
+out = {'hydrants': hydrants, 'amenities': amenities, 'courts': courts, 'libraries': libraries}
 json.dump(out, open(os.path.join(ROOT, 'Web/data/street-furniture.json'), 'w'), separators=(',', ':'))
-print(f'{len(hydrants) // 2} hydrants, {len(amenities) // 4} park amenities, {len(courts) // 6} courts and fields')
+print(f'{len(hydrants) // 2} hydrants, {len(amenities) // 4} park amenities, {len(courts) // 6} courts and fields, {len(libraries) // 2} little libraries')
