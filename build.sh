@@ -84,8 +84,15 @@ fi
 PLAYER="${LAMP_PLAYER:-}"
 [[ "$PLACE" == "ios" ]] && PLAYER=""
 if [[ -z "$PLAYER" ]]; then
-  BIN="$(swift build "${FLAGS[@]}" --show-bin-path)/NewYork3"
-  swift build "${FLAGS[@]}" 2>&1
+  # Lamp says the Swift and the tools are as they were at its last Mac build (LAMP_SWIFT_BUILT, a change of the page
+  # alone): the binary that build made, where it said it was, rather than a second or two of swift build doing nothing.
+  if [[ "$PLACE" != "ios" && -n "${LAMP_SWIFT_BUILT:-}" && -f .build/lamp-mac-bin ]] && BIN="$(<.build/lamp-mac-bin)" && [[ -x "$BIN" ]]; then
+    :
+  else
+    BIN="$(swift build "${FLAGS[@]}" --show-bin-path)/NewYork3"
+    swift build "${FLAGS[@]}" 2>&1
+    [[ "$PLACE" == "ios" ]] || print -r -- "$BIN" > .build/lamp-mac-bin
+  fi
 fi
 rm -rf "$APP"
 if [[ "$PLACE" == "ios" ]]; then

@@ -68,8 +68,8 @@ the city's inventory, traffic and people; Michigan Stadium ("the Big House") mod
   The player's machine is built by `createMachineEntity` (six truck wheels, the front pair steering; the excavator
   slides on its tracks) with CAR_HANDLING's `dumptruck`/`excavator`, a bigger collision box (`MACHINE_BOX` → `playerBox`,
   also read by traffic and train contact) and the bus engine sound.
-- **The city**: time of day from the buttons at the top, Teleport (Main Street, the Diag, Burton Tower, the Michigan
-  Theater, Kerrytown, the Big House, the Arb, Gallup Park), M the full map (true north up), H hides the HUD, N sound, and the reset button (after sound) puts the car, bike, kayak, helicopter and walker back at their starts (`resetGame` in `main.js`).
+- **The city**: time of day from the buttons at the top, Teleport (every landmark: Main Street, the Diag, Burton Tower, the Michigan
+  Theater, Kerrytown, the Big House, the Arb, Gallup Park, the Cascades, Hill, the Union, UMMA, the library, Crisler, Amtrak, the Gandy Dancer, Graffiti Alley, the League, Rackham, Yost, the Farmers Market, Tower Plaza), M the full map (true north up), H hides the HUD, N sound, and the reset button (after sound) puts the car, bike, kayak, helicopter and walker back at their starts (`resetGame` in `main.js`).
 - **A controller** works too (`gamepad-controls.js`): left stick move or steer, right stick look, RT and LT gas and
   brake, A jump, LB and RB change mode, Y the camera, Menu the map and B closes it.
 - The guide to the controls and the keys on the HUD's buttons show what the player is holding (`input()`, `label()`
@@ -383,3 +383,14 @@ More landmarks (js/more-landmarks.js): the Michigan League, Rackham, the Museum 
 Rule for every landmark: each named landmark is custom modeled by hand (its real shape, materials and signature details), never left as a survey box or a generic building. A new landmark gets its own model before it goes on the map or the teleport list.
 
 The Diag M (js/diag-m.js): the bronze block M on a round granite inlay at the Diag's central crossing (839.5, 300.5), flush with the paving.
+
+The Gandy Dancer (more-landmarks.js, gandyDancer): the 1886 Michigan Central depot on Depot St (survey building at 560,-840), fieldstone boulders, red sandstone arches, red hipped roofs with deep eaves, round cone-roofed tower on the street side, platform porch on the tracks side.
+
+Graffiti Alley (js/graffiti-alley.js): the passage off E Liberty between the shops (x 483.5) and the Michigan Theater's west wall (x 491), back to the Liberty Square parking structure at z 1.2. Walls, end wall and pavement carry procedural spray-paint canvases (seeded, so the same each time). The survey ran the parking structure down the alley; a landmark collider's `reshapes: { from, to }` hands buildings.js the structure cut back to its face.
+Both are in the teleport menu (index.html buttons, TELEPORT_LOCATIONS gandy and graffiti).
+
+Teleport viewpoints (city-config.js TELEPORT_LOCATIONS, `view(x, z, targetX, targetZ, lookUp)`): each landmark's arrival is authored by eye for a clear view of its model (not snapped to the nearest street), with how far the camera looks up (`teleportTo`'s fourth argument sets `cameraSystem.lookUp`). A new landmark gets its own checked viewpoint and a tp-* button in index.html.
+
+The Amtrak station (more-landmarks.js, amtrakStation): the 1983 one-story brown-brick station on Depot St (survey block at 429,-903), a clerestory glass band under a low hipped roof, a full-height glass front toward the parking, and a long canopy on posts along the tracks side.
+
+Landmark fixes from the viewpoint check: the Michigan Theater's doors sit on its face; arch steps scale by the arch's width; the District Library has its front wing and Fifth Ave entrance; Rackham's entrance is on the south; the Gandy Dancer's dormer is stone with arched windows. Michigan Stadium's outer wall rises with the ground round the bowl (smoothed so it isn't a sawtooth), the survey's thin scoreboard boxes at each end are replaced by the stadium's collider, and the video boards' backs carry a maize block M on blue.
