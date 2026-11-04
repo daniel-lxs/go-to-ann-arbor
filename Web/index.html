@@ -96,6 +96,7 @@
       <symbol id="i-fit" viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></symbol>
       <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.3"/><path d="m20 20-4.6-4.6"/></symbol>
       <symbol id="i-reset" viewBox="0 0 24 24"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3L4.5 9"/><path d="M4.5 4.5V9H9"/></symbol>
+      <symbol id="i-record" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.2"/><circle cx="12" cy="12" r="4.4" fill="currentColor" stroke="none"/></symbol>
       <symbol id="i-close" viewBox="0 0 24 24"><path d="m6.5 6.5 11 11M17.5 6.5l-11 11"/></symbol>
     </defs>
   </svg>
@@ -154,6 +155,9 @@
         <svg class="icon" aria-hidden="true"><use href="#i-map"/></svg><span class="tool-label">Map</span><kbd data-key="KeyM" data-pad="MENU">M</kbd>
       </button>
       <span class="toolbar-divider" aria-hidden="true"></span>
+      <button id="btn-record" class="tool-btn" type="button" title="Record a video" aria-label="Record a video" aria-pressed="false">
+        <svg class="icon" aria-hidden="true"><use href="#i-record"/></svg><span class="tool-label rec-time">Record</span>
+      </button>
       <button id="btn-sound" class="tool-btn icon-only" type="button" title="Mute sound [N]" aria-label="Mute sound" aria-pressed="true">
         <svg class="icon" aria-hidden="true"><use href="#i-sound"/></svg>
       </button>

@@ -268,6 +268,7 @@ More from the generator, each in `GEO`:
   (`street-details.js` section 6). Only the shelters cast shadows. Benches and trash cans go flying when hit
   (`throwThing` in knockdowns.js). OSM's `amenity=public_bookcase` points are Little Free Libraries, a post with a
   little roofed box (Little Free Library publishes no open data).
+- Underwater: a car or bike driven into the river takes the follow camera under once its roof is below the surface (`cameras.js`, clamped between the bed and the surface); while the camera is under, main.js sets `lighting.uUnder`, which turns the aerial fog into a close green-brown murk (`createAerialFogNode`, colour from the preset's fog × UNDER_TINT), and shows a tinted wash over the view. The water surface is double-sided so it shows overhead. The jump camera stays above the water at its spot and at the landing spot, so a jump into the river is seen going in.
 - Potholes (`potholes.js`, `data/potholes.json` from `Assets/Tools/build-potholes.py`): the open pothole reports in
   the City's SeeClickFix 311 system (what a2potholes.com maps; fetched when the script is run, not live), each moved
   from the curb onto the street beside it into the wheel path, bigger the longer it's been open; one instanced patch
@@ -367,3 +368,6 @@ Rivian R1S (from the SUV) and R1T (from the pickup) join them: oval corner headl
 - Burton Tower, Hill Auditorium and the Michigan Union are modeled by hand (campus-landmarks.js).
 
 - PFAS foam: river-pfas.js reads Michigan EGLE's Huron River PFAS sampling (nearest site to town, Barton Pond) at start; PFOS against the 12 ppt state limit sets waterDisturb.pfas (0-1), which the water shader (tsl-materials.js pfasFoam) turns into drifting off-white foam rafts, thicker in the cascades. Offline it uses the last known reading.
+- Recording: the top bar's Record button (before sound; main.js makes it if the page predates it) records the 3D view and the city's sound with MediaRecorder (recorder.js), sent a second at a time to Native.swift (`videoStart`/`videoChunk`/`videoEnd`), which writes it to ~/Movies/Go To Ann Arbor and shows it in Finder; without the app it downloads.
+- The helicopter wears an air-ambulance pattern (royal blue over a maize belly and nose, a maize side swoosh with pinstripes, blue/maize fin) with no words or logos (helicopter.js).
+- Getting in (F) prefers the vehicle you face (`facing` in `enterOrExit`). Road-work dirt piles are tall, steep cones (`PILE` in road-work.js, climb limit 1.0) to jump off. Each closed block shows an orange road-work diamond on the minimap and full map (`workSites`, `drawWorkSign` in city-map.js).
