@@ -1685,3 +1685,7 @@ hdr = b'ELV2' + struct.pack('<6f', ex0, ez0, STEP, cols, rows, 0)
 with gzip.open(os.path.join(OUT_DATA, 'elevation.bin.gz'), 'wb', 9) as f:
     f.write(hdr + np.round(rel * 100).astype('<u2').tobytes())
 print('elevation', os.path.getsize(os.path.join(OUT_DATA, 'elevation.bin.gz')) // 1024, 'KB')
+
+# The heaviest layers out of city-geodata.js into files read as they're needed (split-geodata.py)
+import subprocess
+subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'split-geodata.py')], check=True)
