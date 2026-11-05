@@ -6,6 +6,7 @@ import { ssr } from 'three/addons/tsl/display/SSRNode.js';
 import { createPostProcessing } from './post-processing.js';
 import { ClusteredLighting } from 'three/addons/lighting/ClusteredLighting.js';
 import { CarRadio } from './radio.js';
+import { CAR_RATIOS, newGearState, shiftGear, engineRPM } from './gearbox.js';
 import { getLocationLabel, isTypingInField, ROADS, LANDMARKS, TELEPORT_LOCATIONS } from './city-config.js';
 import { buildKayakLaunches } from './kayak-launches.js';
 import { buildLivery } from './gallup-livery.js';
@@ -726,6 +727,8 @@ async function initApp() {
   const elSpeed = document.getElementById('hud-speed');
   const elSpeedMeter = document.getElementById('hud-speed-meter');
   const elAltitude = document.getElementById('hud-altitude');
+  const elGear = document.getElementById('hud-gear');
+  const elRpm = document.getElementById('hud-rpm');
   const elLocation = document.getElementById('hud-location');
   const elControlsHint = document.getElementById('hud-controls-hint');
   const gamepadControls = new GamepadControls(controllerManager, cameraSystem, {
@@ -770,6 +773,55 @@ async function initApp() {
   let jumpOut = false;
   // Top speeds in mph (controllers.js caps them at 8.2, 36, 19 & 52 m/s): full scale of the speed meter
   const topSpeedMph = { person: 18, car: 160, cyclist: 28, helicopter: 167, kayak: 12 };
+
+  // The gear and revs on the dial in a car come from the same gearbox as the engine sound (gearbox.js), fed the
+  // road speed and a throttle worked out from how fast the speed is changing: R in reverse, N at rest
+  const hudBox = newGearState();
+  const hud = { shownMph: -1, shownGear: '', shownRpm: -1, clock: 0, lastClock: 0, lastSpeed: 0, load: 0, first: true };
+  function gearReadout(speedMps, forward) {
+    const dt = Math.max(0.05, hud.clock - hud.lastClock);
+    const accel = (speedMps - hud.lastSpeed) / dt;
+    hud.lastClock = hud.clock;
+    hud.lastSpeed = speedMps;
+    // as audio-sources.js roadLoad: acceleration over a car's best (about 5 m/s²) plus what holding speed takes
+    const want = Math.min(1, Math.max(0, accel / 5 + Math.min(1, speedMps / 2) * (0.12 + 0.28 * Math.min(1, speedMps / 30) ** 2)));
+    hud.load += (want - hud.load) * 0.6;
+    shiftGear(hudBox, speedMps, hud.load, hud.clock, hud.first, CAR_RATIOS);
+    hud.first = false;
+    const rpm = engineRPM(hudBox, speedMps, hud.load, CAR_RATIOS, 780);
+    const gear = speedMps < 0.5 ? 'N' : !forward ? 'R' : 'D' + (hudBox.gear + 1);
+    return { gear, rpm: Math.round(rpm / 50) * 50 };
+  }
+
+  // The speedometer: a 270-degree analog dial whose scale fits the mode (a car's to 100, a walker's to 20)
+  const DIAL_SWEEP = 135;
+  const dialScale = { max: 0 };
+  function buildDial(mode) {
+    const g = document.getElementById('dial-ticks');
+    if (!g) return;
+    const top = topSpeedMph[mode] || 80;
+    const major = top <= 20 ? 5 : top <= 50 ? 10 : 20;
+    const max = Math.ceil(top / major) * major;
+    if (dialScale.max === max && g.childNodes.length) return;
+    dialScale.max = max;
+    const minor = major / 5;
+    const at = (deg, r) => [100 + r * Math.sin(deg * Math.PI / 180), 100 - r * Math.cos(deg * Math.PI / 180)];
+    let svg = '';
+    const redFrom = mode === 'car' || mode === 'helicopter' ? max * 0.85 : Infinity;
+    for (let v = 0; v <= max + 1e-6; v += minor) {
+      const isMajor = Math.abs(v / major - Math.round(v / major)) < 1e-6;
+      const deg = -DIAL_SWEEP + (v / max) * DIAL_SWEEP * 2;
+      const [x1, y1] = at(deg, 88);
+      const [x2, y2] = at(deg, isMajor ? 77 : 83);
+      const red = v >= redFrom;
+      svg += `<line x1="${x1.toFixed(2)}" y1="${y1.toFixed(2)}" x2="${x2.toFixed(2)}" y2="${y2.toFixed(2)}" stroke="${red ? '#ff4b3a' : isMajor ? '#f2f0ea' : 'rgba(242,240,234,0.5)'}" stroke-width="${isMajor ? 2.2 : 1}" stroke-linecap="round"/>`;
+      if (isMajor) {
+        const [tx, ty] = at(deg, 63);
+        svg += `<text x="${tx.toFixed(2)}" y="${(ty + 4).toFixed(2)}" text-anchor="middle" class="dial-num${red ? ' red' : ''}">${Math.round(v)}</text>`;
+      }
+    }
+    g.innerHTML = svg;
+  }
 
   // Keys in the city's own keycaps; a controller's buttons as the runtime draws them for that controller.
   function renderControlHints(mode, on = input()) {
@@ -1636,6 +1688,11 @@ async function initApp() {
     if (elapsed - weatherAskedAt > 900) askWeather(elapsed);
     precipitation.update(cameraSystem.camera, elapsed);
     audioSystem.update(dt, elapsed, cameraSystem.camera, lightingSystem.lookId === 'midnight');
+    {
+      const car = controllerManager.entities.car;
+      const driving = controllerManager.activeMode === 'car' && car;
+      audioSystem.tireSkid(driving ? car.skid || 0 : 0, driving ? Math.abs(car.speed) : 0);
+    }
     mark('light, map, weather, sound');
     if (warmedUp) updateSceneCulling(cameraSystem.camera.position); // the warm-up frame draws every chunk
     if (TIER.stream) {
@@ -1712,6 +1769,24 @@ async function initApp() {
     // their actual frame rate (updates DOM every 250ms).
     frameCount++;
     fpsTimer += Math.max(0, rawDt);
+    hud.clock += Math.max(0, rawDt);
+    // The speed, the needle and the gear follow every frame, not the slower telemetry below
+    {
+      const ent = controllerManager.getActiveEntity();
+      const dialMode = controllerManager.activeMode;
+      const mphExact = (dialMode === 'kayak' ? ent.groundSpeed || 0 : Math.abs(ent.speed)) * 2.237;
+      const mph = Math.round(mphExact);
+      if (elSpeed && mph !== hud.shownMph) { hud.shownMph = mph; elSpeed.textContent = String(mph); }
+      if (elSpeedMeter && dialScale.max) {
+        elSpeedMeter.style.transform = `rotate(${-DIAL_SWEEP + Math.min(1, mphExact / dialScale.max) * DIAL_SWEEP * 2}deg)`;
+      }
+      // the gear and revs are worked out ten times a second, which is the rate the engine sound reads them at
+      if (dialMode === 'car' && elGear && hud.clock - hud.lastClock >= 0.1) {
+        const read = gearReadout(Math.abs(ent.speed), ent.speed >= 0);
+        if (read.gear !== hud.shownGear) { hud.shownGear = read.gear; elGear.textContent = read.gear; }
+        if (elRpm && read.rpm !== hud.shownRpm) { hud.shownRpm = read.rpm; elRpm.textContent = String(read.rpm); }
+      }
+    }
     if (fpsTimer >= 0.25) {
       const currentFps = Math.round(frameCount / fpsTimer);
       frameCount = 0;
@@ -1719,7 +1794,6 @@ async function initApp() {
 
       const activeEnt = controllerManager.getActiveEntity();
       const mode = controllerManager.activeMode;
-      const mph = Math.round((mode === 'kayak' ? activeEnt.groundSpeed || 0 : Math.abs(activeEnt.speed)) * 2.237);
       // Lamp: height above the ground below (terrain.js)
       const altFt = Math.max(0, Math.round((activeEnt.position.y - groundHeight(activeEnt.position.x, activeEnt.position.z)) * 3.281));
 
@@ -1733,8 +1807,7 @@ async function initApp() {
         renderControlHints(mode);
         touchControls.setGetOutWords(mode === 'person' ? 'Get in' : jumping ? 'Jump out' : 'Get out');
       }
-      if (elSpeed) elSpeed.textContent = String(mph);
-      if (elSpeedMeter) elSpeedMeter.style.transform = `scaleX(${Math.min(1, mph / (topSpeedMph[mode] || 80))})`;
+      buildDial(mode);
       if (elAltitude) elAltitude.textContent = altFt.toLocaleString('en-US');
       // The street corner of the player on the follow cameras, of the camera itself on the scenic ones
       const where = cameraSystem.getActivePreset().category === 'follow' ? activeEnt.position : cameraSystem.currentPos;
