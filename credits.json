@@ -7,7 +7,7 @@
       "url" : "https://github.com/lampdotdev/newyork"
     },
     {
-      "commit" : "bf19fd46a3ac8f5742e1db4487b51ff20f8e1ed2",
+      "commit" : "511b814f0d817e936fdf4fef2505a5103132eef0",
       "name" : "Go To Ann Arbor",
       "url" : "https://github.com/mrubens/go-to-ann-arbor",
       "wish" : "3DF4E397-D414-4837-8390-3F7946A6D12D"
@@ -199,12 +199,6 @@
       "license" : "CC-BY-SA-4.0",
       "name" : "Mapillary street-level imagery (decides house and shopfront looks; no photos ship)",
       "url" : "https://www.mapillary.com"
-    },
-    {
-      "author" : "City of Ann Arbor",
-      "license" : "None",
-      "name" : "Parcels with assessor's year built and storeys",
-      "url" : "https://a2maps.a2gov.org/a2arcgis/rest/services/WaterServiceLeadMaterialAll/MapServer/3"
     }
   ]
 }

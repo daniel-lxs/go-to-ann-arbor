@@ -718,7 +718,13 @@ async function initApp() {
   const teleportButtons = document.querySelectorAll('[data-teleport]');
   const hudToggleBtn = document.getElementById('btn-toggle-hud');
   const modeSwitch = document.getElementById('mode-switch');
-  touchControls.onAvailabilityChange = placeModeIndicator;
+  // On a touch screen the game opens in clean view (the eye closed); the player's own choice, or a kept one, stands.
+  let hudChosen = false;
+  touchControls.onAvailabilityChange = () => {
+    placeModeIndicator();
+    if (touchControls.available && !hudChosen && hudToggleBtn && !document.body.classList.contains('hud-minimized')) hudToggleBtn.click();
+    hudChosen = true;
+  };
   touchControls.onGetInOut = () => getInOrOut();
 
   const elFps = document.getElementById('hud-fps');
@@ -878,6 +884,10 @@ async function initApp() {
     });
     document.body.dataset.mode = mode;
     placeModeIndicator();
+    // the touch bar's first button shows how the player travels now, its list which one
+    const modeIcon = document.querySelector(`#mode-switch [data-mode="${mode}"] use`)?.getAttribute('href');
+    if (modeIcon) document.querySelector('#cb-mode use')?.setAttribute('href', modeIcon);
+    document.querySelectorAll('.pop-mode').forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
     const ent = controllerManager.getActiveEntity();
     if (elMode) elMode.textContent = ent.label;
     jumpOut = false;
@@ -1148,6 +1158,9 @@ async function initApp() {
     });
     const preset = cameraSystem.getActivePreset();
     if (elCamera) elCamera.textContent = preset.name;
+    const short = { chase: 'Chase', action: 'Low angle', pov: 'First person', drone: 'Aerial' }[preset.id] || preset.name;
+    const cbName = document.getElementById('cb-camera-name');
+    if (cbName) cbName.textContent = short;
   }
 
   // Steps through CAMERA_PRESETS (V / Shift+V, and the arrows either side of the camera name)
@@ -1207,13 +1220,19 @@ async function initApp() {
     });
   }
   popovers.forEach((pop) => {
-    const invoker = document.querySelector(`[popovertarget="${pop.id}"]`);
+    const invoker = document.querySelector(`[popovertarget="${pop.id}"]:not(.compact-btn)`);
     pop.addEventListener('beforetoggle', (e) => {
       const open = e.newState === 'open';
       if (invoker) invoker.classList.toggle('is-open', open);
+      if (!open) document.querySelectorAll(`#compact-bar [popovertarget="${pop.id}"]`).forEach((b) => b.classList.remove('is-open'));
       if (!open) return;
-      const anchor = document.getElementById(pop.dataset.anchor) || invoker;
-      const align = document.getElementById(pop.dataset.align) || invoker;
+      // on a touch screen or in a narrow window every list opens from the one bar at the bottom, lined up under its own button
+      const shown = document.getElementById('compact-bar');
+      const bar = shown && getComputedStyle(shown).display !== 'none' ? shown : null;
+      const barBtn = bar && bar.querySelector(`[popovertarget="${pop.id}"]`);
+      const anchor = barBtn ? bar : document.getElementById(pop.dataset.anchor) || invoker;
+      const align = barBtn || document.getElementById(pop.dataset.align) || invoker;
+      if (barBtn) barBtn.classList.add('is-open');
       if (!anchor || !align) return;
       const r = anchor.getBoundingClientRect();
       const spaceAbove = Math.max(0, r.top - 20);
@@ -1221,7 +1240,13 @@ async function initApp() {
       let above = pop.dataset.side === 'above';
       // The camera control moves to the top on touch screens; open toward the available space.
       if ((above ? spaceAbove : spaceBelow) < 160) above = spaceAbove > spaceBelow;
-      pop.style.right = `${Math.max(8, window.innerWidth - align.getBoundingClientRect().right)}px`;
+      if (barBtn && barBtn.id === 'cb-mode') {
+        pop.style.right = 'auto';
+        pop.style.left = `${Math.max(8, r.left)}px`;
+      } else {
+        pop.style.left = 'auto';
+        pop.style.right = `${Math.max(8, window.innerWidth - (barBtn ? r.right : align.getBoundingClientRect().right))}px`;
+      }
       if (above) {
         pop.style.top = 'auto';
         pop.style.bottom = `${window.innerHeight - r.top + 8}px`;
@@ -1237,6 +1262,12 @@ async function initApp() {
   modeButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
       travelBy(btn.getAttribute('data-mode'));
+    });
+  });
+  document.querySelectorAll('.pop-mode').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      travelBy(btn.dataset.mode);
+      closePopovers();
     });
   });
 
@@ -1843,6 +1874,7 @@ async function initApp() {
     if (state.time) selectTime(state.time);
     if (state.camera) selectCamera(state.camera, true);
     if (Number.isFinite(state.zoom)) cameraSystem.zoomMultiplier = state.zoom;
+    if (typeof state.hudHidden === 'boolean') hudChosen = true;
     if (typeof state.hudHidden === 'boolean' && hudToggleBtn && state.hudHidden !== document.body.classList.contains('hud-minimized')) hudToggleBtn.click();
     if (state.map === true) mapSystem.toggleFullMap(true);
   }

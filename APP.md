@@ -111,7 +111,7 @@ the city's inventory, traffic and people; Michigan Stadium ("the Big House") mod
     lofted from cross-sections in code with three.js's LoftGeometry: `cars.js`, `bus.js`, `helicopter.js`, and the
     pieces they share in `vehicles.js`.
   - `cameras.js`, `city-map.js` (the minimap and the full map), `scene-culling.js`, `audio-*.js` (the synthesized
-    sounds), `gamepad-controls.js`, `touch-controls.js` (shown on a touch screen).
+    sounds), `gamepad-controls.js`, `touch-controls.js` (shown on a touch screen: the stick and round action buttons drawn as pictures only, no words: jump, handbrake, ascend, descend, get in, get out, jump out, symbols i-jump… in index.html's sprite, swapped by TOUCH_ICONS; the mode switch and the camera and radio rows give way to one bar at the bottom (#compact-bar: how you travel, the view, the music), each button opening its list (#mode-popover, the camera popover, #radio-popover filled by radio.js), placed by main.js's popover code under its button (a Mac window narrower than 820 px gets the same bar, a small speedometer pinned in the bottom-right corner, the map's height, with the bar layered over both; both go below 620 px); a touch screen opens in clean view, the eye closed, unless a kept snapshot says otherwise).
   - The ground: `terrain.js`. The city is built flat at street level (y = 0) and then set on the real ground's heights:
     `groundHeight(x, z)` is the one answer to "how high is the ground here", and everything asks it. `setOnTerrain`
     (called in main.js once the city is built) cuts the ground layers finer where the ground bends and lays them on
