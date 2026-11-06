@@ -10,9 +10,9 @@
 
 Each opens Lamp with a copy of Go To Ann Arbor and that change, ready to send:
 
-- [Add snow and fall leaves by season](https://lamp.dev/?repo=https://github.com/mrubens/go-to-ann-arbor&from=readme&ask=Add%20snow%20and%20fall%20leaves%20by%20season)
-- [Let me honk the SUV horn](https://lamp.dev/?repo=https://github.com/mrubens/go-to-ann-arbor&from=readme&ask=Let%20me%20honk%20the%20SUV%20horn)
-- [Put game day crowds in the Big House](https://lamp.dev/?repo=https://github.com/mrubens/go-to-ann-arbor&from=readme&ask=Put%20game%20day%20crowds%20in%20the%20Big%20House)
+- [Add a night mode with glowing streetlights](https://lamp.dev/?repo=https://github.com/mrubens/go-to-ann-arbor&from=readme&ask=Add%20a%20night%20mode%20with%20glowing%20streetlights)
+- [Let me drop a pin on the minimap](https://lamp.dev/?repo=https://github.com/mrubens/go-to-ann-arbor&from=readme&ask=Let%20me%20drop%20a%20pin%20on%20the%20minimap)
+- [Make rain and snow roll through the city](https://lamp.dev/?repo=https://github.com/mrubens/go-to-ann-arbor&from=readme&ask=Make%20rain%20and%20snow%20roll%20through%20the%20city)
 
 ## Open it in Lamp
 

@@ -261,6 +261,25 @@ def park_spec(t, pts):
     return (1 if r else 0) | (2 if l else 0)
 
 
+# A street closed for work is mapped as highway=construction while it lasts, with what it'll be in construction= (or
+# nothing): it's still there, so it goes in as that, or as what the rest of the street of that name is. The city's
+# closures (city-closures.js) shut the block while the work's on.
+usual = {}
+for w in ways:
+    t = w.get('tags', {})
+    if t.get('highway') in DRIVE and t.get('name'):
+        usual.setdefault(t['name'], {}).setdefault(t['highway'], 0)
+        usual[t['name']][t['highway']] += 1
+for w in ways:
+    t = w.get('tags', {})
+    if t.get('highway') != 'construction' or t.get('area') == 'yes':
+        continue
+    was = t.get('construction')
+    if was not in DRIVE:
+        was = max(usual[t['name']].items(), key=lambda kv: kv[1])[0] if was is None and t.get('name') in usual else None
+    if was:
+        w['tags'] = {**t, 'highway': was}
+
 drive = []
 for w in ways:
     t = w.get('tags', {})
