@@ -2,7 +2,7 @@ Kind: game, drawn with three.js (Lamp's runtime in Web/lamp-game.js), at home on
 Look: a sunlit 3D Ann Arbor, Michigan at true scale (brick downtown, campus limestone, leafy neighborhoods, the Huron
 River, Michigan maize #FFCB05 and blue #00274C on the Big House), with a translucent dark heads-up display over it: the
 place and street at the bottom left over a minimap, the modes (Walk, Drive, Cycle, Fly, Paddle) at the bottom, the vehicle and
-its speed at the bottom right as a round analog dial (bezel, ticks, numbers and an orange needle, redline on the car and helicopter; `buildDial` in main.js draws the scale for each mode, `#dial` in index.html and `.dial` in style.css), and time of day, Teleport, Map and sound at the top right.
+its speed at the bottom right in large digits over a thin bar filled to its share of the mode's top speed (`.gauge` in index.html and style.css; `buildDial` in main.js sets the scale; the person turned down a round dial, a flat bar gauge and a wide sweep dial), and time of day, Teleport, Map and sound at the top right.
 
 # Ann Arbor
 
@@ -99,7 +99,13 @@ the city's inventory, traffic and people; Michigan Stadium ("the Big House") mod
     midnight. `river-birds.js`: mallards (drakes and hens) at Argo Pond, Riverside, Island Park, Fuller and Gallup;
     Canada geese on Gallup's water and grazing its lawns (they hiss and honk at someone on foot walking up, then
     waddle off); a great blue heron in the shallows below the Cascades (`CASCADE_FOOT` in cascades.js), lifting away
-    slowly; a red-tailed hawk or two circling over the Arb and the river by day, crying now and then. Birds fly off
+    slowly; a red-tailed hawk or two circling over the Arb and the river by day, crying now and then. `deer.js`:
+    white-tailed deer (a herd of a buck with antlers and three does, another of three does) on two meadows of the
+    Nichols Arboretum, at dawn and dusk only (the golden and twilight looks): graze, step on to fresh grass, stand
+    head-up and watch anyone within ~38 m (let be if they stand still), and at ~17 m snort and bound off together,
+    white tails flagged, then are gone until another dawn or dusk; they slip into the trees when it gets light or dark,
+    and never come into being in plain sight. Skinned lofted body (winter coat, throat patch, eye ring, muzzle band,
+    white tail underside), `poseDeer` for walk, bound, graze and alert; a baked stand-in past 110 m. Birds fly off
     low from boats (river-people.js's `people`), the player and the helicopter, and roost silent at night. Models:
     `animal-models.js` (the squirrel: skinned body, painted fur, `Body` the shared lofting kit) and `animal-birds.js`
     (the four birds: skinned bodies, painted feathers, wings that fold and spread, `poseBird`); each species shares one
@@ -119,6 +125,7 @@ the city's inventory, traffic and people; Michigan Stadium ("the Big House") mod
     momentum about the axis, with a clang (audio-events.js) in place of a crash (`quiet`), and a low grind from the
     pivot follows its speed (`cubeGrind` in audio-system.js). Teleport's "The Cube" arrives on foot (`foot` in
     TELEPORT_LOCATIONS); it's a map label in LANDMARKS; walkers route round `CUBE_FOOTPRINT`.
+  - The West Park Band Shell (`band-shell.js`): on OpenStreetMap's outline (way 193803223), facing north to the park's grandstand. Five concrete arches telescoping back from the open front (each a band with a face reaching out to the one before), a half-round back wall and a backstage block, a raised stage on the outline with steps up the apron. The map says it's closed since 2021 and fenced in, so temporary chain-link panels (an alpha-tested diamond pattern on each panel's uv) ring it; their four sides and the shell are the colliders, the last carrying `replaces` for the survey's block. Its footprint keeps traffic and walkers out.
   - The place: `city-geodata.js` (the real geography, generated data: don't edit by hand), `city-config.js` (streets,
     parks, water, the town's edge `TOWN_EDGE` and bounds `TOWN_BOUNDS`, `LANDMARKS`, in meters), `city-grid.js`, `landmarks.js`, `outskirts.js`, `road-network.js`,
     `road-paint.js`, `traffic-controls.js` (traffic lights on mast arms at OSM signals, switched each frame from
@@ -462,6 +469,7 @@ Tree sizes (trees.js): a surveyed street tree grows to its real height (only a t
 Electric cars: Tesla (fastback sedan), Ioniq 5 (boxy hatch) and Cybertruck (stainless wedge) are body specs in cars.js built on the sedan, SUV and pickup; they appear in town traffic, highway traffic and parked cars, drive with quick EV pull, and sound of tyres only. The fastback (kind 'tesla', shown as "EV Sport Sedan", no badge) drives as a tri-motor performance sedan: 13 m/s² off the line (60 mph in about two seconds) and 200 mph flat out; the speed dial's scale reaches any car's top speed past 160 (`buildDial(mode, drive)`).
 Rivian R1S (from the SUV) and R1T (from the pickup) join them: oval corner headlamps, full-width tail bar, Rivian colors.
 
+- Sitting: on foot, F beside a park bench (three places along each), a cafe chair, a picnic bench or a place on the bleachers sits down on it, facing its way (seats.js gathers them from street-details.js' bench obstacles, outdoor-seating.js and bleachers.js `seats`; controllers.js enterOrExit offers the nearest, sitDown/standUp, posed with the rig's `perch`). F, the stick or jump stands back up where they stood; a seat knocked over can't be sat on. The save keeps where they stood.
 - Buses: on foot, F beside a bus at its stop gets on (its driver waits while the player walks up); the player rides along out of sight with the camera pulled back, and F at a later stop gets off at the door (traffic.js boardBus/busRide/leaveBus, controllers.js getOnBus/getOffBus, main.js getInOrOut).
 - ONE WAY signs at the corners where one-way streets leave an intersection (traffic-controls.js).
 - Burton Tower, Hill Auditorium and the Michigan Union are modeled by hand (campus-landmarks.js). The Union is in high
@@ -509,6 +517,8 @@ Ball diamonds (js/ball-diamonds.js, data/ball-diamonds.json from Assets/Tools/bu
 Bleachers (js/bleachers.js, data/bleachers.json from Assets/Tools/build-bleachers.py, after build-ball-diamonds.py): the 44 OpenStreetMap leisure=bleachers outside the stadiums, each its outline's smallest box facing the nearest pitch or track, and a three-row set behind the line fence of each ball diamond with none mapped within 60 m. Rows of aluminium seat and foot planks 0.38 m a step, on steel stringers, a back rail on 4+ rows; set level on the lowest ground under it. Instanced, planks scaled to length. `colliders` (solid boxes) keep cars out; `seats` lists a place a metre apart along each row.
 
 Docks and boat launches (js/boat-docks.js, data/boat-docks.json from Assets/Tools/build-boat-docks.py, reading .lamp/reference/aa/ovp/boats.json from Overpass): every OpenStreetMap man_made=pier but the footbridges, paths and steps and the Gallup livery's own (gallup-livery.js draws those), as straight runs (a mapped outline becomes the run down its smallest box); and every leisure=slipway. A dock is a timber deck in 2.4 m sections, 0.45 m above the water out over it and 0.3 m above the bank on land, on posts to the riverbed, with up to three kayaks, canoes or rowboats tied alongside over deep enough water. A launch is a concrete ramp toward the nearest open water, from the bank to under it. `dockTop` is walked on (controllers.js rampTop) and `collide` keeps the player's boat off the docks and the tied boats (bumpLiveryBoats). A tied boat is boarded from the dock (controllers.js getIn `tied`, `nearest`/`take`): the player's kayak takes its place and its spot stands empty until another boat is taken (`release`); `docksTaken` is saved with the player.
+
+Restrooms (js/restrooms.js, data/restrooms.json from Assets/Tools/build-restrooms.py, reading .lamp/reference/aa/ovp/stage-toilets.json from Overpass: amenity=toilets): indoor rooms left out. A mapped restroom building stands on its outline's smallest box in place of the survey's block (`replaces`): split-face block walls (`pat` 1, courses from world y) on a plinth, a louvred vent band, a shingled hip roof (`pat` 2), a steel door mid each long side (men's one side, women's the other) with a pictogram sign and a light lit at dusk; shelter=yes gives a deep roof on posts and a slab. A point (men's and women's within 10 m are one) is a 4.4 by 3.2 m restroom where it isn't inside a survey building, or a portable toilet (`pat` 3 ribs) where its toilets are chemical. One merged mesh, one for the lights; OBB colliders and pedestrian footprints.
 
 Skate park (js/skate-park.js, data/skate-park.json from Assets/Tools/build-skate-park.py): the Ann Arbor Skatepark in Veterans Memorial Park from its OpenStreetMap outline (leisure=pitch sport=skateboard). One concrete height field sampled every 0.35 m: a 1.15 m quarter-pipe lip all round the inside of the outline with a bank down to the lawn outside (so the narrow north arm is a snake run), a 1.9 m round bowl at the roomiest end, a pyramid funbox in the plaza, plus a ledge, a manual pad (blocks) and a flat bar placed where they fit. Steel coping on the lip and the bowl's rim. `top(x, z)` is ridden, walked and driven on (controllers.js rampTop). Teleport: Skatepark.
 
