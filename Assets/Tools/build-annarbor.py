@@ -87,6 +87,21 @@ _fb = FENCE.bounds
 SOUTH = unary_union([LAND.intersection(box(-9000, 4400, 9000, 9000)), box(_fb[0] - 60, _fb[1] - 60, _fb[2] + 60, 7200)]).convex_hull
 SOUTH = SOUTH.intersection(box(-9000, 4400, 9000, 7200))
 LAND = Polygon(max(parts(unary_union([LAND, SOUTH]).buffer(30, join_style=2).buffer(-30, join_style=2).simplify(4)), key=lambda p: p.area).exterior)
+# and the freeways where they swing out past the limits and come back in (M-14 round the northwest, US-23 and I-94 on
+# the east side): the stretch between is taken into town, ~110 m wide, so a highway that leaves and rejoins the town
+# stays in the world rather than ending at its edge. Stretches that leave and don't come back (I-94 west, US-23 south)
+# stay outside, in the outskirts.
+_fw = []
+for e in json.load(open(os.path.join(REF, 'osm.json')))['elements']:
+    if e['type'] == 'way' and 'geometry' in e and e.get('tags', {}).get('highway') in ('motorway', 'trunk', 'motorway_link', 'trunk_link'):
+        _fw.append(LineString([xz(g['lon'], g['lat']) for g in e['geometry']]))
+_out = unary_union(_fw).difference(LAND)
+_out = shapely.ops.linemerge(_out) if _out.geom_type == 'MultiLineString' else _out
+_rim = LAND.boundary.buffer(8)
+_loops = [g for g in getattr(_out, 'geoms', [_out]) if g.length > 60 and _rim.contains(Point(g.coords[0])) and _rim.contains(Point(g.coords[-1]))]
+if _loops:
+    LAND = Polygon(max(parts(unary_union([LAND] + [g.buffer(55, cap_style=2) for g in _loops]).buffer(30, join_style=2).buffer(-30, join_style=2).simplify(4)), key=lambda p: p.area).exterior)
+    print(f'freeway stretches taken into town: {len(_loops)}, {sum(g.length for g in _loops):.0f} m')
 LAND_P = prep(LAND)
 X0, Z0, X1, Z1 = [math.floor(v) if i < 2 else math.ceil(v) for i, v in enumerate(LAND.bounds)]
 # The middle of town, drawn at full detail (downtown, campus, Kerrytown, the Old West Side, Burns Park, the big parks,
