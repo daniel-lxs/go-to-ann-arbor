@@ -589,6 +589,7 @@ async function initApp() {
         controllerManager.setMode(mode);
         controllerManager.teleportActiveTo(p.x, p.z, p.heading, p.y);
       }
+      if (saved.foot && [saved.foot.x, saved.foot.y, saved.foot.z, saved.foot.heading].every(Number.isFinite)) controllerManager.footSpot = { ...saved.foot };
       controllerManager.setMode(Object.hasOwn(controllerManager.entities, saved.activeMode) ? saved.activeMode : 'car');
       // the car the player drives (one taken from a parking spot or traffic), and whether they're in something
       if (saved.carLook && !isOwnLook(saved.carLook)) controllerManager.restyleCar(saved.carLook);
@@ -612,6 +613,12 @@ async function initApp() {
     }
   } catch { /* Missing or unavailable storage does not prevent playing. */ }
 
+  // where the walker last stood on foot (kept while they ride, since the walker then follows the vehicle)
+  function rememberFoot() {
+    const p = controllerManager.entities.person;
+    if (controllerManager.activeMode !== 'person' || p.sitting || p.fallen || p.chute) return;
+    controllerManager.footSpot = { x: p.position.x, y: p.position.y, z: p.position.z, heading: p.heading };
+  }
   function savePlayerState() {
     try {
       // one sitting down is kept where they stood to sit
@@ -621,7 +628,7 @@ async function initApp() {
         x: entity.position.x, y: entity.position.y, z: entity.position.z, heading: entity.heading
       }]));
       const leftEmpty = Object.keys(controllerManager.entities).filter((mode) => controllerManager.entities[mode].leftEmpty);
-      save('player', { version: 2, activeMode: controllerManager.activeMode, entities, carLook: controllerManager.carLook, leftEmpty,
+      save('player', { version: 2, activeMode: controllerManager.activeMode, entities, foot: controllerManager.footSpot || null, carLook: controllerManager.carLook, leftEmpty,
         boat: controllerManager.entities.kayak.boat, liveryTaken: liveryPart.made.taken, docksTaken: docksPart.made.taken });
       save('parkedSwaps', parkedCars.history);
     } catch { /* Storage may be disabled or full. */ }
@@ -1054,16 +1061,28 @@ async function initApp() {
     }
   }
 
-  // 1 to 5 (the mode buttons, the bumpers): another way of getting around starts at its own view of the city, unless
-  // it's already close by (the car the player just stepped out of), when the player simply takes it
+  // 1 to 5 (the mode buttons, the bumpers): switches to another way of getting around, which is where it was last left
+  // (the scenic start only on a first play or after Reset). The person on foot returns to their own remembered spot (footSpot).
   function travelBy(mode) {
     const cm = controllerManager;
     if (mode === 'car' && cm.entities.car.machine === 'stairtruck' && !airportPart.made.stairsHeld) retakeStairs();
     if (mode === cm.activeMode || !cm.entities[mode]) { selectMode(mode); return; }
-    const here = cm.getActiveEntity().position, there = cm.entities[mode].position;
-    const close = Math.hypot(there.x - here.x, there.z - here.z) < 40;
+    // Each way of getting around keeps its own place: switching brings the player back to where that one was left
+    // (the scenic starts are only for a first play, Reset and the Teleport menu). On foot they stand where the walker was
+    // left, not beside the vehicle they were in.
+    if (mode !== 'person') cm.entities[mode].leftEmpty = false;
+    const wasOn = cm.activeMode;
     selectMode(mode);
-    if (!close) goToStart(mode);
+    // on foot again: back where the walker was last on foot, not beside the vehicle they rode (setMode put them there)
+    if (mode === 'person' && wasOn !== 'person' && cm.footSpot) {
+      const f = cm.footSpot;
+      cm.teleportActiveTo(f.x, f.z, f.heading, f.y);
+    }
+    touchControls.reset();
+    gamepadControls.reset();
+    cameraSystem.resetForTeleport();
+    selectCamera('chase', true);
+    savePlayerState();
   }
   // Reset game: every way of getting around back at its own start, the player in their own car on Main St, the time
   // back to now and what earlier plays left behind (parked cars swapped) forgotten
@@ -1091,6 +1110,8 @@ async function initApp() {
       if (mode === 'kayak') { e.heading = s.heading; e.mesh.rotation.y = s.heading; }
       if (mode === 'car') cm.stopCar(e);
     }
+    // the walker's own remembered spot goes back to the walking start too, or Walk after a reset returns to the old place
+    { const s = SCENIC_STARTS.person; cm.footSpot = { x: s.x, y: groundHeight(s.x, s.z), z: s.z, heading: s.heading }; }
     p.riding = 'car';
     selectMode('car');
     parkedCars.history.length = 0;
@@ -1529,6 +1550,8 @@ async function initApp() {
 
   function teleportTo(x, z, heading = Math.PI, lookUp) {
     const destination = controllerManager.teleportActiveTo(x, z, heading);
+    rememberFoot();
+    savePlayerState();
     log(`[teleport] asked ${x.toFixed(1)}, ${z.toFixed(1)} → landed ${destination.x.toFixed(1)}, ${destination.z.toFixed(1)} as ${controllerManager.activeMode}`);
     touchControls.reset();
     gamepadControls.reset();
@@ -2042,6 +2065,7 @@ async function initApp() {
       heardStrokes = kayak.strokes;
       if (controllerManager.activeMode === 'kayak') audioSystem.cue('splash', kayak.position, 0.8);
     }
+    rememberFoot();
     if (!document.hidden && now >= nextPlayerSave) {
       savePlayerState();
       nextPlayerSave = now + 5000;
@@ -2127,11 +2151,11 @@ async function initApp() {
       // each half with what's near its own camera shown, the far chunks hidden from it (scene-culling.js)
       const cam2 = split.second.camera;
       split.view.render([
-        { scene, camera: cameraSystem.camera },
-        { scene, camera: cam2, before: () => { updateSceneCulling(cam2.position); moonPart.made.update(cam2); } }
+        { scene, camera: cameraSystem.camera, before: () => cameraSystem.applyCut() },
+        { scene, camera: cam2, before: () => { split.second.cs.applyCut(); updateSceneCulling(cam2.position); moonPart.made.update(cam2); } }
       ]);
       moonPart.made.update(cameraSystem.camera);
-    } else renderPipeline.render();
+    } else { cameraSystem.applyCut(); renderPipeline.render(); }
     gpuTime.end();
     mark('render');
     prof.n++;
