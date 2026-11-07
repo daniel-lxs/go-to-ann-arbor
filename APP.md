@@ -238,7 +238,7 @@ this order, all with `.lamp/reference/venv/bin/python -I <tool> .` from the app 
    limits, paving) are whole-city downloads in `.lamp/reference/aa/` already.
 2. `Assets/Tools/fetch-3dep.py`: the USGS 1 m bare earth, in 1 km squares over `CX0..CZ1` (now -6000..7000 both ways).
 3. `Assets/Tools/build-annarbor.py`: the map (`Web/js/city-geodata.js`, buildings, trees, river, 10 m elevation, curb
-   cuts, woods, yards). The detailed area `LAND` is the limits with the township islands filled, buffered 120 m:
+   cuts, woods, yards). The detailed area `LAND` is the limits with the township islands filled, buffered 120 m (now x -4677..6041, z -5009..7200, 90 km², with the airport, the freeway loops and the streets in `WHOLE_STREETS`, Elizabeth Road west of Maple, taken in whole with 90 m each side, their houses from OpenStreetMap where the city has no footprints, and their trees from `Assets/Tools/fetch-canopy-extra.py`, which reads tree cover off one small USGS NAIP aerial photo per street into `.lamp/reference/aa/canopy-extra/` since the city's canopy stops at the limits; run it before this step when adding a street):
    everything is clipped to it, and `GEO.edge` is its outline (`TOWN_EDGE`, `inTown` in city-config.js, which keeps
    cars and teleports inside). `GEO.limits` (the real limits and islands) is drawn dashed on the map. `CORE` (the
    first map's box, downtown, campus, Kerrytown, the Old West Side, the Arb and the big parks) is in `GEO.core` and

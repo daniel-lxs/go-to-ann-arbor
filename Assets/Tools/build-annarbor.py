@@ -102,6 +102,15 @@ _loops = [g for g in getattr(_out, 'geoms', [_out]) if g.length > 60 and _rim.co
 if _loops:
     LAND = Polygon(max(parts(unary_union([LAND] + [g.buffer(55, cap_style=2) for g in _loops]).buffer(30, join_style=2).buffer(-30, join_style=2).simplify(4)), key=lambda p: p.area).exterior)
     print(f'freeway stretches taken into town: {len(_loops)}, {sum(g.length for g in _loops):.0f} m')
+# and streets asked for whole that run out past the line (Elizabeth Road, west of Maple), with ~90 m each side for the
+# houses on them; their houses come from OpenStreetMap where the city has no footprints (Buildings below)
+WHOLE_STREETS = ('Elizabeth Road',)
+_ws = [LineString([xz(g['lon'], g['lat']) for g in e['geometry']])
+       for e in json.load(open(os.path.join(REF, 'osm.json')))['elements']
+       if e['type'] == 'way' and 'geometry' in e and e.get('tags', {}).get('name') in WHOLE_STREETS and e.get('tags', {}).get('highway')]
+if _ws:
+    LAND = Polygon(max(parts(unary_union([LAND] + [g.buffer(90) for g in _ws]).buffer(30, join_style=2).buffer(-30, join_style=2).simplify(4)), key=lambda p: p.area).exterior)
+    print(f'whole streets taken into town: {len(_ws)} ways, {sum(g.length for g in _ws):.0f} m')
 LAND_P = prep(LAND)
 X0, Z0, X1, Z1 = [math.floor(v) if i < 2 else math.ceil(v) for i, v in enumerate(LAND.bounds)]
 # The middle of town, drawn at full detail (downtown, campus, Kerrytown, the Old West Side, Burns Park, the big parks,
@@ -529,8 +538,28 @@ for f in bj['features']:
     # who owns it: 5 the University (campus brick & limestone), 6 the city, county, schools and federal government
     kind = OWNER_KIND.get(pr.get('Owned_By'), kind)
     buildings.append({'geom': geom, 'height': int(round(min(h, 120))), 'kind': kind, 'name': pr.get('Bldg_Name') or ''})
-print(f'{len(buildings)} buildings')
 built_union = unary_union([b['geom'] for b in buildings])
+# along the whole streets past the line the city has no footprints: OpenStreetMap's houses there, at a house's height
+if _ws:
+    _wsz = prep(unary_union([g.buffer(100) for g in _ws]))
+    _added = 0
+    for e in ways:
+        t = e.get('tags', {})
+        if 'building' not in t:
+            continue
+        g = area_of(e)
+        if g is None or g.area < 12:
+            continue
+        c = g.representative_point()
+        if not _wsz.contains(c) or not LAND.contains(c) or built_union.intersects(c):
+            continue
+        res = t.get('building') in ('yes', 'house', 'residential', 'detached', 'garage', 'shed', 'semidetached_house')
+        h = float(t['height']) if re.fullmatch(r'[0-9.]+', t.get('height', '')) else (3.5 if t.get('building') in ('garage', 'shed') else 7 if res else 9)
+        buildings.append({'geom': g, 'height': int(round(min(h, 120))), 'kind': 1 if res else 2, 'name': t.get('name', '')})
+        _added += 1
+    built_union = unary_union([b['geom'] for b in buildings])
+    print(f'{_added} OpenStreetMap buildings along the whole streets')
+print(f'{len(buildings)} buildings')
 
 # --- Blocks -----------------------------------------------------------------------------------------------------------------
 SIDEWALK = 4.6
@@ -1010,6 +1039,15 @@ for fn in sorted(glob.glob(os.path.join(CAN, 'p*.json'))):
                 pg = make_valid(Polygon(rings[0], [r for r in rings[1:] if len(r) >= 4]))
                 if pg.area >= 12:
                     canopy_polys.append(pg)
+# and past the city line, where the city's canopy stops, the cover read from an aerial photo (fetch-canopy-extra.py)
+_beyond = LAND.difference(LIMITS)
+for fn in sorted(glob.glob(os.path.join(REF, 'canopy-extra', '*.json'))):
+    for f in json.load(open(fn)).get('features', []):
+        rings = [[xz(lon, lat) for lon, lat, *_ in ring] for ring in f['geometry']['coordinates']]
+        pg = make_valid(Polygon(rings[0], [r for r in rings[1:] if len(r) >= 4])).intersection(_beyond)
+        for p in parts(pg):
+            if p.area >= 12:
+                canopy_polys.append(p)
 print(f'{len(canopy_polys)} canopy patches, {sum(p.area for p in canopy_polys) / 1e6:.2f} km2')
 
 # --- Railroads (OSM railway=rail): the Michigan Line (Amtrak) along the Huron, the Ann Arbor Railroad and the Great
