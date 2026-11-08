@@ -8,6 +8,8 @@
 #   sig/osm_signals.json     Overpass: traffic lights, stop and yield signs, crossings
 #   rail/level_crossings.json, roofs/roofs.json, fuel/fuel.json, ../osm-bookcases.json
 #   canopy/p*.json           the city's Urban Tree Canopy (NaturalFeatures/MapServer/10), 1000 at a time
+#   nonmotorized/aa_nonmotorized.geojson  the city's Non-Motorized Routes (ckan.a2gov.org, no license stated):
+#                            bike lanes, sharrows, bike routes, shared-use paths and trails by kind, side and material
 # Run: .lamp/reference/venv/bin/python -I Assets/Tools/fetch-annarbor.py <app folder>
 import json, os, sys, time, urllib.parse, urllib.request
 from shapely.geometry import shape
@@ -17,6 +19,9 @@ ROOT = sys.argv[1] if len(sys.argv) > 1 else '.'
 REF = os.path.join(ROOT, '.lamp/reference/aa')
 UA = {'User-Agent': 'GoToAnnArbor/1.0'}
 BOUNDARY = os.path.join(REF, 'limits/aa_city_boundary.geojson')
+NONMOTOR = os.path.join(REF, 'nonmotorized/aa_nonmotorized.geojson')
+NONMOTOR_URL = ('https://ckan.a2gov.org/dataset/de971a58-43e3-40f9-b8e0-ee3e77afd711/resource/'
+                'f52c097b-d50d-49fb-a293-cea458862614/download/aa_nonmotorized.geojson')
 BOUNDARY_URL = ('https://ckan.a2gov.org/dataset/c5d51794-60bb-478e-8cef-da420869d98d/resource/'
                 '515b29a3-14e1-467e-9c9b-42f53b676fd8/download/aa_city_boundary.geojson')
 
@@ -35,6 +40,13 @@ def get(url, data=None, timeout=900):
 if not os.path.exists(BOUNDARY):
     os.makedirs(os.path.dirname(BOUNDARY), exist_ok=True)
     open(BOUNDARY, 'wb').write(get(BOUNDARY_URL))
+if not os.path.exists(NONMOTOR):
+    # the whole city's layer in one file (the download redirects; urllib follows it)
+    os.makedirs(os.path.dirname(NONMOTOR), exist_ok=True)
+    body = get(NONMOTOR_URL)
+    print('non-motorized routes', len(json.loads(body)['features']), flush=True)
+    open(NONMOTOR + '.part', 'wb').write(body)
+    os.replace(NONMOTOR + '.part', NONMOTOR)
 limits = unary_union([shape(f['geometry']) for f in json.load(open(BOUNDARY))['features']])
 W, S, E, N = limits.bounds
 # about 600 m round the limits: the streets that leave town, and what the edge's lawn border meets
