@@ -2295,7 +2295,7 @@ async function initApp() {
         }
         elLimit.classList.toggle('over', !!limit && mphExact > limit + 10);
       }
-      if (split.drawn) split.second.drawHud(topSpeedMph[split.second.cm.activeMode]);
+      if (split.drawn) split.second.drawHud();
       // the gear and revs are worked out ten times a second, which is the rate the engine sound reads them at
       if (dialMode === 'car' && elGear && hud.clock - hud.lastClock >= 0.1) {
         const read = gearReadout(Math.abs(ent.speed), ent.speed >= 0);
