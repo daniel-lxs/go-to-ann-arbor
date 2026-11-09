@@ -1749,10 +1749,23 @@ body.split #hud-instruments .race-mode::before { content: 'P1 · '; }
 /* the second player's gear and revs follow their own mode (split-screen.js sets data-mode), not the page's */
 .p2-hud .instruments .readout, .p2-hud .instruments .race-revs { display: none; }
 .p2-hud .instruments[data-mode='car'] .readout, .p2-hud .instruments[data-mode='car'] .race-revs { display: block; }
+/* each half holds a speedometer and a mini map side by side: the race HUD and the place name narrowed to the map's
+   width, so the two corners of a half stay apart down to about 1,000 px across, and smaller again below that */
+body.split .instruments { width: 220px; }
+body.split #hud-speed, body.split .p2-speed { font-size: 76px; }
+body.split .location-place { max-width: 220px; }
 /* each player's mini map, smaller, in the bottom-left corner of their own half */
 .p2-radar { display: none; left: calc(50% + var(--edge)); bottom: var(--edge); }
 body.split .p2-radar { display: block; }
 body.split .radar { width: 220px; height: 140px; }
+/* (below about 1,000 px across, the narrower split-screen corners: after the map's own size above) */
+@media (max-width: 1000px) {
+  body.split .instruments, body.split .cluster { width: 180px; }
+  body.split #hud-speed, body.split .p2-speed { font-size: 56px; }
+  body.split .readout-gear { font-size: 32px; }
+  body.split .radar { width: 160px; height: 100px; }
+  body.split .location-place { max-width: 160px; }
+}
 .p2-radar-canvas { display: block; width: 100%; height: 100%; }
 /* only the first player has the radio */
 body.split .p2-hud .car-radio { display: none; }
