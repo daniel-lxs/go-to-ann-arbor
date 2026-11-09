@@ -102,7 +102,5 @@ Amtrak GTFS timetable (Wolverine stops at Ann Arbor) is used under its own terms
 
 Ann Arbor scooter locations (GBFS) is used under its own terms (LicenseRef-Bird-GBFS-Data-License).
 
-1 picture made with AI, each marked as such in the file itself: `Assets/bookstore-mural.png`.
-
 Remixed from [New York](https://github.com/lampdotdev/newyork) (a Lamp starter).
 
