@@ -438,6 +438,7 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections, c
   const player = { active: false, entity: null, x: 0, z: 0, vx: 0, vz: 0, fx: 0, fz: 1,
     halfW: 0.86, halfL: 2.18 };
   const nearEdges = [];
+  const nearFreeways = []; // Lamp: the freeway's links among them, where new cars go more often (see spawnVehicle)
   const nearSignals = [];
   const pedestrianSystem = createPedestrianSystem(network, {
     player, nearEdges, nearSignals, mayCross, walkOn, visible, nearView
@@ -636,11 +637,15 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections, c
     nearX = focusX;
     nearZ = focusZ;
     nearEdges.length = 0;
+    nearFreeways.length = 0;
     nearSignals.length = 0;
     for (const e of edges) {
       const s = clamp((focusX - e.sx) * e.dx + (focusZ - e.sz) * e.dz, 0, e.len);
       const dx = e.sx + e.dx * s - focusX, dz = e.sz + e.dz * s - focusZ;
-      if (dx * dx + dz * dz < NEAR_RADIUS * NEAR_RADIUS) nearEdges.push(e);
+      if (dx * dx + dz * dz < NEAR_RADIUS * NEAR_RADIUS) {
+        nearEdges.push(e);
+        if ((e.cls ?? 4) === 0) nearFreeways.push(e);
+      }
     }
     for (const n of nodes) {
       const dx = n.x - focusX, dz = n.z - focusZ;
@@ -1383,7 +1388,15 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections, c
     pathPoint(v, v.conn ? v.cs : v.s, at);
     v.tx = at.dx;
     v.tz = at.dz;
-    const dl = v.curb ? v.dl + CURB_OFFSET : v.dl;
+    let dl = v.curb ? v.dl + CURB_OFFSET : v.dl;
+    // Lamp: a bicycle or scooter in the outermost lane of a street with a bike lane rides in the bike lane (the right
+    // half of a two-way one), easing over from the curb side of the lane in the first and last 8 m of the street
+    const e = v.edge;
+    if (v.curb && !v.conn && e.bikeR > 0 && v.lane === e.lanes.length - 1) {
+      const want = e.half - (e.parkR || 0) - (e.bk & 512 ? 0.75 : 0.85) - e.lanes[v.lane];
+      const t = Math.max(0, Math.min(1, v.s / 8, (e.len - v.s) / 8));
+      dl += (want - CURB_OFFSET) * t;
+    }
     v.x = at.x - at.dz * dl;
     v.z = at.z + at.dx * dl;
     const nose = Math.atan2(at.dx, at.dz) - v.yaw;
@@ -1677,9 +1690,11 @@ function createTrafficSystem(scene, sidewalks, obstacles, signalIntersections, c
   function spawnVehicle(v, rMin, rMax, protectView) {
     if (v.riderOff) remount(v);
     for (let attempt = 0; attempt < 12; attempt++) {
-      const e = nearEdges[Math.floor(Math.random() * nearEdges.length)];
+      // Lamp: a third of new cars go on a freeway nearby: its few long links would otherwise get few of them
+      const fw = !v.bus && nearFreeways.length && Math.random() < 0.33;
+      const e = fw ? nearFreeways[Math.floor(Math.random() * nearFreeways.length)] : nearEdges[Math.floor(Math.random() * nearEdges.length)];
       if (!e || e.closed || (v.bus && e.axis !== 'ave') || e.len < 2 * v.half + 10) continue;
-      if (Math.random() > CLASS_TRAFFIC[e.cls ?? 4]) continue; // Lamp: main roads are busier than side streets
+      if (!fw && Math.random() > CLASS_TRAFFIC[e.cls ?? 4]) continue; // Lamp: main roads are busier than side streets
       const lane = Math.floor(Math.random() * e.lanes.length);
       const along = (focusX - e.sx) * e.dx + (focusZ - e.sz) * e.dz;
       const minS = Math.max(v.half + 5, along - rMax);

@@ -45,9 +45,11 @@ import { loadYardData, allYards } from './yards.js';
 import { buildCascades, CASCADE_START } from './cascades.js';
 import { buildRiverPeople } from './river-people.js';
 import { buildAnimals } from './animals.js';
-import { buildCube, CUBE_FOOTPRINT } from './the-cube.js';
 import { buildBandShell } from './band-shell.js';
 import { buildRestrooms } from './restrooms.js';
+import { buildDraftedHouses } from './drafted-houses.js';
+import { buildHelipads } from './helipads.js';
+import { speedLimitAt } from './speed-limits.js';
 import { createSeats } from './seats.js';
 import { CityAudioSystem } from './audio-system.js';
 import { fetchWeather, createPrecipitation } from './weather.js';
@@ -66,6 +68,7 @@ import { buildBoatDocks } from './boat-docks.js';
 import { buildSkatePark } from './skate-park.js';
 import { buildParkingStructures } from './parking-structures.js';
 import { buildMtbTrails } from './mtb-trails.js';
+import { buildBikeRoutes } from './bike-routes.js';
 import { dressForSnow, loadSnowCover } from './snow-cover.js';
 import { createMoon } from './moon.js';
 import { waterDisturb } from './tsl-materials.js';
@@ -304,7 +307,7 @@ async function initApp() {
   const outskirts = outskirtsPart.made;
   markInit('outskirts');
   await showLoadingStage('Building the Big House...');
-  const landmarks = live.keep('landmarks', () => cityPart((g) => buildLandmarks(g), { cull: setupSceneCulling, still: true }), { inputs: [heights], from: [CITY_MAP, 'js/stadium-geodata.js', 'js/campus-landmarks.js', 'js/merge-static.js'] });
+  const landmarks = live.keep('landmarks', () => cityPart((g) => buildLandmarks(g), { cull: setupSceneCulling, still: true }), { inputs: [heights], from: [CITY_MAP, 'js/stadium-geodata.js', 'js/campus-landmarks.js', 'js/merge-static.js', 'js/landmarks.js'] });
   // the parking structures, to drive up floor by floor; they stand in for the survey's blocks (parking-structures.js)
   const parkingPart = await live.keep('parkingStructures', () => cityPart((g) => buildParkingStructures(g), { cull: setupSceneCulling, still: true }),
     { inputs: [heights], from: ['js/parking-structures.js', 'data/parking-structures.json'] });
@@ -312,7 +315,9 @@ async function initApp() {
   const bandShellPart = live.keep('bandShell', () => cityPart((g) => buildBandShell(g), { cull: setupSceneCulling, still: true }), { inputs: [heights], from: ['js/band-shell.js'] });
   // the town's public restrooms and portable toilets, where the map has them (restrooms.js)
   const restroomsPart = await live.keep('restrooms', () => cityPart((g) => buildRestrooms(g), { cull: setupSceneCulling, still: true }), { inputs: [heights], from: ['js/restrooms.js', 'data/restrooms.json'] });
-  const landmarkColliders = [...landmarks.made.colliders, ...parkingPart.made.colliders, ...bandShellPart.made.colliders, ...restroomsPart.made.colliders];
+  // houses drafted from street photos by Open Facades, each in place of the survey's block where it really stands (drafted-houses.js)
+  const draftedPart = await live.keep('draftedHouses', () => cityPart((g) => buildDraftedHouses(g), { cull: setupSceneCulling, still: true }), { inputs: [heights], from: ['js/drafted-houses.js', 'js/drafted/spec-render.js', 'js/drafted/generator.js', 'js/drafted-yards.js', 'data/drafted-houses.json'] });
+  const landmarkColliders = [...landmarks.made.colliders, ...parkingPart.made.colliders, ...bandShellPart.made.colliders, ...restroomsPart.made.colliders, ...draftedPart.made.colliders];
   markInit('landmarks');
   await showLoadingStage('Generating building footprints and facades...');
   // house numbers by the front doors (build-addresses.py, the city's Address Points)
@@ -330,7 +335,7 @@ async function initApp() {
   const looksBytes = await asset('data/building-looks.json');
   setBuildingLooks(looksBytes ? JSON.parse(new TextDecoder().decode(looksBytes)) : null);
   const blocks = live.keep('blocks', () => cityPart((g) => buildCityBlocks(g, landmarkColliders, addresses, gasStations), { cull: setupSceneCulling, still: true }),
-    { inputs: [heights, landmarks, parkingPart, bandShellPart, restroomsPart], from: [CITY_MAP, ...BUILDING_DATA, 'data/addresses.json', 'data/districts.json', 'data/gas-stations.json', 'data/roof-shapes.json', 'data/building-looks.json'] });
+    { inputs: [heights, landmarks, parkingPart, bandShellPart, restroomsPart, draftedPart], from: [CITY_MAP, ...BUILDING_DATA, 'data/addresses.json', 'data/districts.json', 'data/gas-stations.json', 'data/roof-shapes.json', 'data/building-looks.json', 'js/houses.js', 'js/trees.js'] });
   const cityBlocks = blocks.made;
   markInit('blocks');
   const allColliders = [...landmarkColliders, ...cityBlocks.colliders, ...outskirts.colliders, ...(cityGrid.colliders || [])];
@@ -342,10 +347,10 @@ async function initApp() {
   const furnitureBytes = await asset('data/street-furniture.json');
   const streetFurniture = furnitureBytes ? JSON.parse(new TextDecoder().decode(furnitureBytes)) : null;
   const details = await live.keep('streetDetails', () => cityPart(async (g) => {
-    const made = buildStreetDetails(g, allColliders, streetFurniture, parkingPart.made.inside);
+    const made = buildStreetDetails(g, allColliders, streetFurniture, parkingPart.made.inside, draftedPart.made.yard || []);
     await setOnTerrain(g.getObjectByName('StreetDetails'));
     return made;
-  }, { cull: setupSceneCulling, still: true }), { inputs: [heights, grid, outskirtsPart, landmarks, blocks, parkingPart], from: [...TREE_DATA, 'data/street-furniture.json', 'js/street-details.js', 'js/tree-placements.js'] });
+  }, { cull: setupSceneCulling, still: true }), { inputs: [heights, grid, outskirtsPart, landmarks, blocks, parkingPart, draftedPart], from: [...TREE_DATA, 'data/street-furniture.json', 'js/street-details.js', 'js/tree-placements.js', 'js/drafted-yards.js', 'js/trees.js'] });
   const streetDetails = details.made;
   markInit('streetDetails');
   await showLoadingStage('Creating traffic and pedestrian routes...');
@@ -357,13 +362,12 @@ async function initApp() {
   const traffic = live.keep('traffic', () => cityPart((g) => createTrafficSystem(g, grid.made.sidewalks, [
     ...grid.made.footprints,
     ...details.made.footprints,
-    CUBE_FOOTPRINT,
     ...parkingPart.made.footprints,
     bandShellPart.made.footprint,
     ...restroomsPart.made.footprints,
     ...allColliders.filter((c) => !c.obb
       && (c.minY ?? 0) - groundHeight((c.minX + c.maxX) * 0.5, (c.minZ + c.maxZ) * 0.5) < 3.5)
-  ], details.made.signalIntersections, cityClosures)), { inputs: [heights, grid, outskirtsPart, landmarks, blocks, details], from: [CITY_MAP, 'data/city-closures.json', 'js/pedestrian-system.js'] });
+  ], details.made.signalIntersections, cityClosures)), { inputs: [heights, grid, outskirtsPart, landmarks, blocks, details], from: [CITY_MAP, 'data/city-closures.json', 'js/pedestrian-system.js', 'js/road-network.js', 'js/curb-parking.js'] });
   const trafficSystem = traffic.made;
   markInit('traffic');
   const highway = live.keep('highwayTraffic', () => cityPart((g) => createHighwayTraffic(g, grid.made.highwayLanes)), { inputs: [grid], from: [CITY_MAP] });
@@ -380,8 +384,10 @@ async function initApp() {
       o.geometry.boundingSphere.radius += 16;
     });
     return made;
-  }, { cull: setupSceneCulling, still: true }), { inputs: [heights, traffic], from: [CITY_MAP, 'js/road-network.js'] });
+  }, { cull: setupSceneCulling, still: true }), { inputs: [heights, traffic], from: [CITY_MAP, 'js/road-network.js', 'js/road-paint.js', 'js/curb-parking.js'] });
   markInit('roadPaint');
+  // the protected bike lanes' flex posts and curbs, the boardwalks and steps, and the BIKE ROUTE signs (bike-routes.js)
+  const bikeRoutesPart = await live.keep('bikeRoutes', () => cityPart((g) => buildBikeRoutes(g, traffic.made.network), { cull: setupSceneCulling, still: true }), { inputs: [heights, traffic], from: [CITY_MAP, 'js/bike-routes.js'] });
   // Traffic lights and stop & yield signs where the road network put them (traffic-controls.js)
   const controlsPart = live.keep('trafficControls', () => cityPart((g) => buildTrafficControls(g, traffic.made.network), { cull: setupSceneCulling, still: true }), { inputs: [heights, traffic, details], from: ['js/traffic-controls.js'] });
   // Signs over the real shops, restaurants and cafes (shop-signs.js, from OpenStreetMap)
@@ -397,7 +403,7 @@ async function initApp() {
   const railPart = live.keep('railways', () => cityPart((g) => buildRailways(g, railCrossings, wolverine), { still: true }), { inputs: [heights], from: ['data/rail-crossings.json', 'data/wolverine.json'] });
   const railways = railPart.made;
   // Cars parked in the lots and along the main streets downtown, solid to the player (parked-cars.js)
-  const parkedPart = live.keep('parkedCars', () => cityPart((g) => buildParkedCars(g, railways.nearTrack, parkingPart.made.stalls)), { inputs: [heights, parkingPart], from: ['js/parked-cars.js', 'js/railways.js', 'data/curb-cuts.bin.gz'] });
+  const parkedPart = live.keep('parkedCars', () => cityPart((g) => buildParkedCars(g, railways.nearTrack, parkingPart.made.stalls)), { inputs: [heights, parkingPart], from: ['js/parked-cars.js', 'js/curb-parking.js', 'js/railways.js', 'data/curb-cuts.bin.gz'] });
   const parkedCars = parkedPart.made;
   // Kayaks pulled up on the river's banks at the parks, to get into there (kayak-launches.js)
   const launchesPart = live.keep('kayakLaunches', () => cityPart((g) => buildKayakLaunches(g)), { inputs: [heights], from: ['js/kayak-launches.js'] });
@@ -428,6 +434,8 @@ async function initApp() {
   allColliders.push(...roadWork.colliders);
   allColliders.push(...airportPart.made.colliders);
   allColliders.push(...bleachersPart.made.colliders);
+  // the town's helipads, painted on the roofs (or ground) where the map has them (helipads.js)
+  const helipadsPart = live.keep('helipads', () => cityPart((g) => buildHelipads(g, allColliders), { still: true }), { inputs: [heights, blocks, landmarks, parkingPart], from: ['js/helipads.js'] });
   // Tree trunks, lamp posts, signal poles and sign posts: thin and solid, so the car crashes into them and the bike
   // throws its rider (`thin`: the helicopter flies through them)
   // and each goes over when a car hits it hard enough (knockdowns.js)
@@ -489,10 +497,7 @@ async function initApp() {
   });
   // Lamp: Ann Arbor's animals, near the player only; never anyone's obstacle (animals.js)
   const animalsPart = live.keep('animals', () => cityPart((g) => buildAnimals(g)), { inputs: [heights, details], from: ['js/animals.js', 'js/animal-models.js', 'js/animal-birds.js', 'js/river-birds.js', 'js/city-birds.js', 'js/deer.js'] });
-  // Lamp: the Cube on Regents Plaza, which turns when it's pushed or hit (the-cube.js)
-  const cubePart = live.keep('cube', () => cityPart((g) => buildCube(g)), { inputs: [heights], from: ['js/the-cube.js'] });
-  allColliders.push(cubePart.made.collider);
-  const parts = [grid, bandShellPart, restroomsPart, cascadesPart, riverPeoplePart, animalsPart, cubePart, outskirtsPart, landmarks, blocks, details, traffic, highway, roadPaint, controlsPart, signsPart, railPart, parkedPart, launchesPart, liveryPart, roadWorkPart, potholesPart, planesPart, scootersPart, racksPart, poolsPart, seatingPart, diamondsPart, bleachersPart, docksPart, skatePart, mtbPart, parkingPart, airportPart, moonPart];
+  const parts = [grid, bandShellPart, restroomsPart, draftedPart, cascadesPart, riverPeoplePart, animalsPart, outskirtsPart, landmarks, blocks, details, traffic, highway, roadPaint, controlsPart, signsPart, railPart, parkedPart, launchesPart, liveryPart, roadWorkPart, potholesPart, planesPart, scootersPart, racksPart, poolsPart, seatingPart, diamondsPart, bleachersPart, docksPart, skatePart, mtbPart, bikeRoutesPart, parkingPart, airportPart, moonPart, helipadsPart];
   for (const part of parts) {
     scene.add(part.group);
     cullAlso(part.culled);
@@ -534,6 +539,7 @@ async function initApp() {
   controllerManager.skatePark = skatePart.made;
   controllerManager.bleachers = bleachersPart.made;
   controllerManager.mtbTrails = mtbPart.made;
+  controllerManager.bikeRoutes = bikeRoutesPart.made;
   controllerManager.parking = parkingPart.made;
   controllerManager.bikeRacks = racksPart.made;
   controllerManager.pools = poolsPart.made;
@@ -561,12 +567,27 @@ async function initApp() {
     car: { x: -23, z: 228, heading: Math.atan2(14.8, -378) },
     // South University's eastbound bike lane, campus on the left
     cyclist: { x: 660, z: 529, heading: Math.PI / 2 },
-    // high over Stadium Blvd south of the Big House, the stadium below and downtown beyond it
-    helicopter: { x: -30, z: 1950, heading: Math.PI, above: 130 },
+    // in a helicopter on the airport's apron, in the row by the FBO (airport.js; `atAirport` takes the middle one)
+    helicopter: { x: 130, z: 6075, heading: 0.15, atAirport: 1, face: { x: -29, z: 1529 } },
     // in the Argo Cascades' channel just above its first drop, facing down it (cascades.js)
     kayak: { ...CASCADE_START }
   };
 
+  // Fly's start: the player's flying machine is that parked helicopter (its spot stands empty while it's theirs, and a
+  // plane taken before goes back to its own spot), at rest on the apron
+  function startInHelicopter(s) {
+    const h = controllerManager.entities.helicopter;
+    const at = airportPart.made.take(s.atAirport);
+    airportPart.made.dress(h, 'helicopter');
+    controllerManager.teleportActiveTo(at.x, at.z, s.face ? Math.atan2(s.face.x - at.x, s.face.z - at.z) : at.heading, groundHeight(at.x, at.z) + 0.25);
+    h.position.set(at.x, groundHeight(at.x, at.z) + 0.25, at.z);
+    // turned to face the Big House, far off up State St
+    h.heading = s.face ? Math.atan2(s.face.x - at.x, s.face.z - at.z) : at.heading;
+    h.speed = h.verticalSpeed = h.pitchAngle = h.rollAngle = 0;
+    h.mesh.position.copy(h.position);
+    h.mesh.rotation.y = h.heading;
+    log('[airport] Fly starts in the parked helicopter by the FBO');
+  }
   // Reuse teleport placement so saved players return at rest, close to their last positions.
   try {
     // Kept with Lamp's save(), which the preview keeps to one play, so every preview starts in the same place.
@@ -576,7 +597,7 @@ async function initApp() {
       for (const [mode, s] of Object.entries(SCENIC_STARTS)) {
         if (!controllerManager.entities[mode]) continue;
         controllerManager.setMode(mode);
-        controllerManager.teleportActiveTo(s.x, s.z, s.heading, s.above ? groundHeight(s.x, s.z) + s.above : null);
+        if (s.atAirport != null) startInHelicopter(s); else controllerManager.teleportActiveTo(s.x, s.z, s.heading, s.above ? groundHeight(s.x, s.z) + s.above : null);
         // the kayak faces the cascades' channel, not the way the pond's water would turn it
         if (mode === 'kayak') { const k = controllerManager.entities.kayak; k.heading = s.heading; k.mesh.rotation.y = s.heading; }
       }
@@ -866,6 +887,7 @@ async function initApp() {
   const elCamera = document.getElementById('hud-active-camera');
   const elSpeed = document.getElementById('hud-speed');
   const elSpeedMeter = document.getElementById('hud-speed-meter');
+  const elLimit = document.getElementById('hud-limit'), elLimitMph = document.getElementById('hud-limit-mph');
   const elAltitude = document.getElementById('hud-altitude');
   const elGear = document.getElementById('hud-gear');
   const elRpm = document.getElementById('hud-rpm');
@@ -1106,7 +1128,7 @@ async function initApp() {
       if (!e) continue;
       cm.setMode(mode);
       e.leftEmpty = false;
-      cm.teleportActiveTo(s.x, s.z, s.heading, s.above ? groundHeight(s.x, s.z) + s.above : null);
+      if (s.atAirport != null) startInHelicopter(s); else cm.teleportActiveTo(s.x, s.z, s.heading, s.above ? groundHeight(s.x, s.z) + s.above : null);
       if (mode === 'kayak') { e.heading = s.heading; e.mesh.rotation.y = s.heading; }
       if (mode === 'car') cm.stopCar(e);
     }
@@ -1132,7 +1154,7 @@ async function initApp() {
   function goToStart(mode) {
     const s = SCENIC_STARTS[mode];
     if (!s) return;
-    controllerManager.teleportActiveTo(s.x, s.z, s.heading, s.above ? groundHeight(s.x, s.z) + s.above : null);
+    if (s.atAirport != null) startInHelicopter(s); else controllerManager.teleportActiveTo(s.x, s.z, s.heading, s.above ? groundHeight(s.x, s.z) + s.above : null);
     touchControls.reset();
     gamepadControls.reset();
     cameraSystem.resetForTeleport();
@@ -1498,7 +1520,7 @@ async function initApp() {
 
   // Where you are: the place's name over its street corner, drawn as a pair of green street-name signs
   const roadNames = new Set(ROADS.map((r) => r.name));
-  const placeNames = new Set(LANDMARKS.map((l) => l.name));
+  const placeNames = new Set(LANDMARKS.flatMap((l) => (l.art ? [l.name, l.short] : [l.name])));
   let locationText = '';
   function renderLocation(label) {
     if (!elLocation || label === locationText) return;
@@ -1904,7 +1926,6 @@ async function initApp() {
   let fpsTimer = 0;
   let nextPlayerSave = 0;
   let heardStrokes = 0;
-  const cubeCtx = { keys: controllerManager.keys, player: null, heading: 0, cue: (k, at, i) => audioSystem?.cue(k, at, i), grind: (w, at) => audioSystem?.cubeGrind(w, at) };
   const animalCtx = { camera: cameraSystem.camera, player: null, mode: 'car', look: 'midday', cars: trafficSystem.cars, buses: trafficSystem.buses, paddlers: riverPeoplePart.made.people || [], colliders: allColliders, cue: (k, at, i) => audioSystem?.cue(k, at, i) };
   let warmedUp = false; // see the first frame below
 
@@ -1912,11 +1933,13 @@ async function initApp() {
 
   // Lamp: what each frame's work costs on this machine, logged every ten seconds (milliseconds a frame on average, and
   // the draws and triangles a frame), to see what slows it down
-  const prof = { t: 0, n: 0, parts: new Map(), draws: 0, tris: 0, next: 10 };
+  // (and the slowest frame's own parts, to see what a stutter is made of)
+  const prof = { t: 0, n: 0, parts: new Map(), cur: new Map(), worst: 0, worstLine: '', draws: 0, tris: 0, next: 10 };
   let profAt = 0;
   const mark = (name) => {
     const t = performance.now();
     prof.parts.set(name, (prof.parts.get(name) || 0) + (t - profAt));
+    prof.cur.set(name, (prof.cur.get(name) || 0) + (t - profAt));
     profAt = t;
   };
   renderer.info.autoReset = false;
@@ -1934,7 +1957,7 @@ async function initApp() {
     const cm = controllerManager;
     split.second = createSecondPlayer({ scene, colliders: allColliders, beside: cm, map: mapSystem, kept: split.kept,
       share: { knockdowns: cm.knockdowns, parkedCars: cm.parkedCars, railways: cm.railways, potholes: cm.potholes, parking: cm.parking,
-        playTop: cm.playTop, skatePark: cm.skatePark, bleachers: cm.bleachers, mtbTrails: cm.mtbTrails, pools: cm.pools, riverScale: cm.riverScale } });
+        playTop: cm.playTop, skatePark: cm.skatePark, bleachers: cm.bleachers, mtbTrails: cm.mtbTrails, bikeRoutes: cm.bikeRoutes, pools: cm.pools, riverScale: cm.riverScale } });
     split.kept = null;
     dynamicRoots.push(...Object.values(split.second.cm.entities).flatMap((e) => [e.mesh, e.helmet]).filter(Boolean));
   }
@@ -1956,11 +1979,27 @@ async function initApp() {
 
   const frame = (f) => {
     profAt = performance.now();
+    prof.cur.clear();
     renderer.info.reset();
     const now = f.time * 1000;
     const rawDt = f.dt;
     const dt = Math.min(Math.max(rawDt, 0.001), 0.05);
     elapsed += dt;
+    // a computer whose frames come slow (under 25 a second over a minute of play, once the city's in) starts
+    // lighter from then on (device-tier.js `slow`); a phone, an Xbox and the light city itself are left as they are
+    if (TIER.name === 'full' || TIER.name === 'light') {
+      const w = (globalThis.__slowWatch ||= { t: 0, n: 0, told: false });
+      if (elapsed > 45 && rawDt < 0.5 && !w.told) {
+        w.t += rawDt; w.n++;
+        if (w.t > 30) {
+          const fps = w.n / w.t;
+          // (two half-minutes running, so a burst of building after a teleport doesn't count)
+          w.slow = fps < 25 ? (w.slow || 0) + 1 : 0;
+          if (w.slow >= 2) { w.told = true; save('slowDevice', true); log(`[tier] ${fps.toFixed(0)} frames a second: lighter from the next start`); }
+          w.t = 0; w.n = 0;
+        }
+      }
+    }
     tickNotice(dt);
     knockdowns.update(dt);
     hydrantSpray.update(dt, cameraSystem.camera);
@@ -1977,6 +2016,15 @@ async function initApp() {
       carRadio.update(dt, { inCar, carKey: look && `${look.kind}:${look.hex}:${look.style ?? 0}`,
         own: Boolean(look && isOwnLook(look)), phones: !inCar && mode !== 'helicopter', soundOn: audioSystem.enabled });
       cm.earbuds = carRadio.earbuds; // white earbuds on the player while one plays (controllers.js)
+    }
+    // the protected bike lanes' flex posts fold under the car and spring back, and their curbs jolt it (bike-routes.js)
+    {
+      const cm = controllerManager, car = cm.activeMode === 'car' ? cm.entities.car : null;
+      bikeRoutesPart.made.update?.(dt, car, (kind, x, z, strength) => {
+        audioSystem?.cue('thud', { x, y: groundHeight(x, z), z }, kind === 'curb' ? 0.5 + strength * 0.5 : 0.25 + strength * 0.35);
+        rumble(0, kind === 'curb' ? 0.4 + strength * 0.5 : 0.15 + strength * 0.2, kind === 'curb' ? 0.3 + strength * 0.4 : 0.2, kind === 'curb' ? 0.2 : 0.1);
+        if (kind === 'curb' && strength > 0.7) log('[bike routes] hit a lane curb hard');
+      });
     }
     // parked cars a crash shoved, sliding to a stop (parked-cars.js), and found where they are now
     for (const col of parkedCars.step(dt, (p) => controllerManager.settleParked(p))) controllerManager.refreshCollider(col);
@@ -2004,7 +2052,7 @@ async function initApp() {
       if (split.drawn) split.second.update(dt, elapsed, f.pads[1], !mapSystem.isFullMapOpen);
     }
     tickRecording(dt);
-    // the camera under the river's surface: murky green fog and a tint over the view
+// the camera under the river's surface: murky green fog and a tint over the view
     {
       const cp = cameraSystem.camera.position, level = waterLevel(cp.x, cp.z);
       // (the river's level runs on over the land beside it, so only where the river really is: not in the stadium's bowl)
@@ -2035,8 +2083,8 @@ async function initApp() {
     riverPeoplePart.made.update(dt, elapsed, cameraSystem.currentPos);
     liveryPart.made.update(dt, elapsed, cameraSystem.currentPos,
       controllerManager.activeMode === 'person' ? controllerManager.entities.person.position : null);
-    planesPart.made.update(dt);
-    scootersPart.made.update(dt, cameraSystem.currentPos);
+    planesPart.made.update(dt, lightingSystem.lookId);
+    scootersPart.made.update(dt, cameraSystem.currentPos, controllerManager.getActiveEntity(), controllerManager.activeMode, rackCue);
     racksPart.made.update(dt, cameraSystem.currentPos, controllerManager.getActiveEntity(), controllerManager.activeMode, rackCue);
     airportPart.made.update?.(dt, cameraSystem.currentPos);
     {
@@ -2052,11 +2100,10 @@ async function initApp() {
     animalCtx.mode = controllerManager.activeMode;
     animalCtx.look = lightingSystem.lookId;
     animalCtx.paddlers = riverPeoplePart.made.people || animalCtx.paddlers;
-    animalsPart.made.update(dt, elapsed, animalCtx);
+    // Lamp: no animals on the Xbox (their tree lookups stalled frames there by 100-170 ms; the person chose to do without)
+    if (XBOX) animalsPart.group.visible = false;
+    else animalsPart.made.update(dt, elapsed, animalCtx);
     mark('animals');
-    cubeCtx.player = animalCtx.player.position;
-    cubeCtx.heading = animalCtx.player.heading;
-    cubePart.made.update(dt, cubeCtx);
     // the dial's name follows whatever the player is in, however they got into it
     const dialLabel = controllerManager.getActiveEntity()?.label;
     if (elMode && dialLabel && dialLabel !== elMode.dataset.label) setDialName(dialLabel);
@@ -2161,16 +2208,30 @@ async function initApp() {
     prof.n++;
     prof.draws += renderer.info.render.drawCalls;
     prof.tris += renderer.info.render.triangles;
+    {
+      let t = 0;
+      for (const v of prof.cur.values()) t += v;
+      if (t > prof.worst) {
+        prof.worst = t;
+        prof.worstLine = [...prof.cur].filter(([, v]) => v >= 2).map(([k, v]) => `${k} ${v.toFixed(0)}`).join(', ');
+      }
+    }
     if (elapsed >= prof.next && warmedUp) {
       prof.next = elapsed + 10;
       const parts = [...prof.parts].map(([k, v]) => `${k} ${(v / prof.n).toFixed(1)}`).join(', ');
       let logic = 0;
       for (const [k, v] of prof.parts) if (k !== 'render') logic += v / prof.n;
       const gpu = gpuTime.take();
-      log(`[frame] ms a frame: ${parts}; logic ${logic.toFixed(1)}, render ${((prof.parts.get('render') || 0) / prof.n).toFixed(1)}, GPU ${gpu == null ? 'n/a' : gpu.toFixed(1)}; ${Math.round(prof.draws / prof.n)} draws, ${(prof.tris / prof.n / 1e6).toFixed(2)}M triangles`);
+      log(`[frame] ms a frame: ${parts}; logic ${logic.toFixed(1)}, render ${((prof.parts.get('render') || 0) / prof.n).toFixed(1)}, GPU ${gpu == null ? 'n/a' : gpu.toFixed(1)}; ${Math.round(prof.draws / prof.n)} draws, ${(prof.tris / prof.n / 1e6).toFixed(2)}M triangles; slowest ${prof.worst.toFixed(0)} (${prof.worstLine})`);
+      prof.worst = 0;
+      prof.lastDraws = prof.draws / prof.n;
       prof.parts.clear(); prof.n = prof.draws = prof.tris = 0;
       // once a run, what the camera has in front of it, part by part (triangle-report.js)
-      if (!prof.measured) {
+      // (and on the Xbox again whenever a view draws a lot, at most once a minute, to see what's behind it)
+      const many = XBOX && prof.lastDraws > 350 && elapsed >= (prof.reportAgain || 0);
+      if (!prof.measured || many) {
+        prof.reportAgain = elapsed + 60;
+        if (!prof.measured && renderer.userData.deviceLine) log(renderer.userData.deviceLine + ' (as found when the page opened)');
         prof.measured = true;
         showTriangles.frame = `${parts}; ${renderer.info.render.drawCalls} draws`;
         showTriangles(reportTriangles(scene, cameraSystem.camera, lightingSystem.sunLight.shadow));
@@ -2218,6 +2279,21 @@ async function initApp() {
       if (elSpeed && mph !== hud.shownMph) { hud.shownMph = mph; elSpeed.textContent = String(mph); }
       if (elSpeedMeter && dialScale.max) {
         elSpeedMeter.style.transform = `rotate(${-DIAL_SWEEP + Math.min(1, mphExact / dialScale.max) * DIAL_SWEEP * 2}deg)`;
+      }
+      // the street's speed limit beside it, in the car or on the bike, looked up four times a second
+      if (elLimit && hud.clock - (hud.limitAt || 0) >= 0.25) {
+        hud.limitAt = hud.clock;
+        const p = ent.position, road = (dialMode === 'car' || dialMode === 'cyclist');
+        let limit = road ? speedLimitAt(p.x, p.z, ent.heading) : 0;
+        // kept a couple of seconds off the street (cutting a corner, a lawn, a lot) so the sign doesn't blink
+        if (limit) hud.limitSeen = hud.clock;
+        else if (road && hud.shownLimit && hud.clock - (hud.limitSeen || 0) < 2.5) limit = hud.shownLimit;
+        if (limit !== hud.shownLimit) {
+          hud.shownLimit = limit;
+          elLimit.hidden = !limit;
+          if (limit) elLimitMph.textContent = String(limit);
+        }
+        elLimit.classList.toggle('over', !!limit && mphExact > limit + 10);
       }
       if (split.drawn) split.second.drawHud(topSpeedMph[split.second.cm.activeMode]);
       // the gear and revs are worked out ten times a second, which is the rate the engine sound reads them at

@@ -1011,6 +1011,44 @@ body[data-mode='helicopter'] .dial-alt {
   filter: drop-shadow(1px 2px 1.5px rgba(0, 0, 0, 0.6));
 }
 
+/* the street's speed limit, a little US SPEED LIMIT sign at the right of the speed */
+.limit-sign {
+  margin-left: auto;
+  align-self: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 38px;
+  padding: 4px 0 3px;
+  background: #f7f7f2;
+  color: #111;
+  border: 2px solid #111;
+  outline: 1.5px solid #f7f7f2;
+  border-radius: 5px;
+  line-height: 1;
+  transition: box-shadow 0.25s;
+}
+.limit-sign[hidden] { display: none; }
+.limit-words {
+  font-size: 6.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: center;
+  line-height: 1.05;
+}
+#hud-limit-mph {
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin-top: 1px;
+  font-variant-numeric: tabular-nums;
+}
+/* well over the limit: a red glow round the sign */
+.limit-sign.over { box-shadow: 0 0 0 3px rgba(235, 60, 50, 0.85); }
+/* in the race HUD it sits just after MPH, not pushed away from the number */
+.race-speed .limit-sign { margin-left: 8px; }
+
 .camera-switch {
   display: flex;
   align-items: center;

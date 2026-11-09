@@ -87,6 +87,30 @@ _fb = FENCE.bounds
 SOUTH = unary_union([LAND.intersection(box(-9000, 4400, 9000, 9000)), box(_fb[0] - 60, _fb[1] - 60, _fb[2] + 60, 7200)]).convex_hull
 SOUTH = SOUTH.intersection(box(-9000, 4400, 9000, 7200))
 LAND = Polygon(max(parts(unary_union([LAND, SOUTH]).buffer(30, join_style=2).buffer(-30, join_style=2).simplify(4)), key=lambda p: p.area).exterior)
+# and the freeways where they swing out past the limits and come back in (M-14 round the northwest, US-23 and I-94 on
+# the east side): the stretch between is taken into town, ~110 m wide, so a highway that leaves and rejoins the town
+# stays in the world rather than ending at its edge. Stretches that leave and don't come back (I-94 west, US-23 south)
+# stay outside, in the outskirts.
+_fw = []
+for e in json.load(open(os.path.join(REF, 'osm.json')))['elements']:
+    if e['type'] == 'way' and 'geometry' in e and e.get('tags', {}).get('highway') in ('motorway', 'trunk', 'motorway_link', 'trunk_link'):
+        _fw.append(LineString([xz(g['lon'], g['lat']) for g in e['geometry']]))
+_out = unary_union(_fw).difference(LAND)
+_out = shapely.ops.linemerge(_out) if _out.geom_type == 'MultiLineString' else _out
+_rim = LAND.boundary.buffer(8)
+_loops = [g for g in getattr(_out, 'geoms', [_out]) if g.length > 60 and _rim.contains(Point(g.coords[0])) and _rim.contains(Point(g.coords[-1]))]
+if _loops:
+    LAND = Polygon(max(parts(unary_union([LAND] + [g.buffer(55, cap_style=2) for g in _loops]).buffer(30, join_style=2).buffer(-30, join_style=2).simplify(4)), key=lambda p: p.area).exterior)
+    print(f'freeway stretches taken into town: {len(_loops)}, {sum(g.length for g in _loops):.0f} m')
+# and streets asked for whole that run out past the line (Elizabeth Road, west of Maple), with ~90 m each side for the
+# houses on them; their houses come from OpenStreetMap where the city has no footprints (Buildings below)
+WHOLE_STREETS = ('Elizabeth Road',)
+_ws = [LineString([xz(g['lon'], g['lat']) for g in e['geometry']])
+       for e in json.load(open(os.path.join(REF, 'osm.json')))['elements']
+       if e['type'] == 'way' and 'geometry' in e and e.get('tags', {}).get('name') in WHOLE_STREETS and e.get('tags', {}).get('highway')]
+if _ws:
+    LAND = Polygon(max(parts(unary_union([LAND] + [g.buffer(90) for g in _ws]).buffer(30, join_style=2).buffer(-30, join_style=2).simplify(4)), key=lambda p: p.area).exterior)
+    print(f'whole streets taken into town: {len(_ws)} ways, {sum(g.length for g in _ws):.0f} m')
 LAND_P = prep(LAND)
 X0, Z0, X1, Z1 = [math.floor(v) if i < 2 else math.ceil(v) for i, v in enumerate(LAND.bounds)]
 # The middle of town, drawn at full detail (downtown, campus, Kerrytown, the Old West Side, Burns Park, the big parks,
@@ -185,7 +209,7 @@ def road_spec(t):
     d = (-1 if rev else 1) if (oneway or rev) else 0
     bike = bike_spec(t, oneway or rev)
     if 'width' not in t:  # room for the painted bike lanes along the curbs
-        w += sum(1.7 for b in (1, 2) if bike & b) + (0.6 if bike & 16 else 0)
+        w += bike_room(bike)
     return round(w, 1), lanes, d, base in ('motorway', 'trunk') or (link and base in ('motorway', 'trunk'))
 
 
@@ -200,8 +224,19 @@ def road_class(t):
     return {'motorway': 0, 'trunk': 0, 'primary': 1, 'secondary': 2, 'tertiary': 3}.get(hw, 4)
 
 
-# Bike lanes painted on the street (OpenStreetMap cycleway*), on the way's right (1) and left (2) as drawn, shared-lane
-# arrows (4 right, 8 left) and a painted buffer (16)
+# Bike lanes painted on the street (OpenStreetMap cycleway*, then the city's Non-Motorized Routes over them, below), as
+# bits: a lane on the way's right (1) and left (2) as drawn, shared-lane arrows (4 right, 8 left), a painted buffer
+# (16), a protected lane's flex posts in that buffer (32) or a low concrete curb there (64), advisory lanes (128: dashed,
+# both sides, no centre line, inside the street's width), a signed bike route with no paint (256), and a two-way lane
+# (512) on the side its 1 or 2 says
+def bike_room(b):
+    if b & 128:
+        return 0.0
+    lane = 3.0 if b & 512 else 1.7
+    buf = 0.9 if b & (16 | 32) else 0.6 if b & 64 else 0.0
+    return sum(lane + buf for side in (1, 2) if b & side)
+
+
 def bike_spec(t, oneway):
     def kind(v):
         return 1 if v in ('lane', 'opposite_lane') else 4 if v == 'shared_lane' else 0
@@ -298,7 +333,8 @@ for w in ways:
     drive.append({'id': w['id'], 'nodes': w['nodes'], 'pts': pts, 'w': wd, 'lanes': lanes, 'dir': d, 'hw': hw,
                   'name': name, 'tunnel': t.get('tunnel') in ('yes',), 'bridge': t.get('bridge') == 'yes',
                   'layer': t.get('layer', '0'), 'cls': road_class(t), 'bike': bike_spec(t, d != 0),
-                  'lf': int_tag(t, 'lanes:forward'), 'lb': int_tag(t, 'lanes:backward'), 'mph': mph(t), 'park': park})
+                  'lf': int_tag(t, 'lanes:forward'), 'lb': int_tag(t, 'lanes:backward'), 'mph': mph(t), 'park': park,
+                  'wt': 'width' in t})
 print(f'{len(drive)} drivable ways')
 
 # Speed limits where OpenStreetMap has none: the city's road centerlines (RoadsSpeedlimitCrash layer 1, SpeedLimit),
@@ -349,6 +385,7 @@ for r in drive:
     for n in r['nodes']:
         use[n] = use.get(n, 0) + 1
 gnodes, gnode_id, gnames, gname_id, glinks = [], {}, [], {}, []
+glink_way = []  # each link's way and its points, for matching the city's routes to it
 
 
 def gnode(nid, p):
@@ -393,7 +430,145 @@ for r in drive:
                 line = rdp(seg, 0.4)
                 glinks.append([a, b, gname(r['name']), r['w'], r['lanes'], r['dir'], flat(line[1:-1]),
                                r['cls'], r['bike'], r['lf'], r['lb'], r['mph'], r['park']])
+                glink_way.append((r, line))
             start = i
+
+# --- The city's Non-Motorized Routes (ckan.a2gov.org, no license stated; fetch-annarbor.py): each bike lane, buffered,
+# protected, advisory or two-way lane, sharrow and signed bike route matched to the road graph's link it runs along
+# (within 12 m of the link's middle and in line with it, as the speed limits are). Where the city has one, it wins over
+# OpenStreetMap's tags; where it has nothing, OSM's stay. The street widens or narrows by the lanes it gains or loses
+# (where OSM gives no width).
+NM_PATH = os.path.join(REF, 'nonmotorized/aa_nonmotorized.geojson')
+nm_feats = []
+if os.path.exists(NM_PATH):
+    for f in json.load(open(NM_PATH))['features']:
+        g, pr = f.get('geometry') or {}, f.get('properties') or {}
+        if g.get('type') not in ('LineString', 'MultiLineString'):
+            continue
+        for part in ([g['coordinates']] if g['type'] == 'LineString' else g['coordinates']):
+            pts_ = [xz(c[0], c[1]) for c in part]
+            if len(pts_) >= 2 and LineString(pts_).length > 1:
+                nm_feats.append((LineString(pts_), pr))
+NM_RANK = {'Protected Bike': 7, 'Buffered Bike': 6, 'Bike Lane': 5, 'Advisory Bike': 4, 'Sharrow': 3,
+           'Designated Bike': 2, 'Suggested Bike': 1}
+COMPASS = {'North': (0, -1), 'South': (0, 1), 'East': (1, 0), 'West': (-1, 0), 'NE': (0.7, -0.7), 'NW': (-0.7, -0.7),
+           'SE': (0.7, 0.7), 'SW': (-0.7, 0.7), 'N': (0, -1), 'S': (0, 1), 'E': (1, 0), 'W': (-1, 0)}
+nm_street = [(l, p) for l, p in nm_feats if p.get('NonMotorizedType') in NM_RANK]
+nm_route_links = []  # links that carry a signed bike route, for the signs
+if nm_street:
+    from shapely.strtree import STRtree as _STR
+    nm_tree = _STR([l for l, _ in nm_street])
+    kinds_n = {}
+    changed = widened = 0
+    for li, (r, line) in enumerate(glink_way):
+        if r['hw']:
+            continue
+        L = LineString(line)
+        if L.length < 4:
+            continue
+        mid = L.interpolate(0.5, normalized=True)
+        a_, b_ = L.interpolate(max(0, L.length / 2 - 3)), L.interpolate(min(L.length, L.length / 2 + 3))
+        tx, tz = b_.x - a_.x, b_.y - a_.y
+        tl = math.hypot(tx, tz) or 1
+        tx, tz = tx / tl, tz / tl
+        rx, rz = -tz, tx  # the link's right, as drawn
+        best = None
+        for i in nm_tree.query(mid.buffer(12)):
+            c, pr = nm_street[i]
+            d = c.distance(mid)
+            if d >= 12:
+                continue
+            u = c.project(mid)
+            ca, cb = c.interpolate(max(0, u - 3)), c.interpolate(min(c.length, u + 3))
+            cx, cz = cb.x - ca.x, cb.y - ca.y
+            if abs(cx * tx + cz * tz) / (math.hypot(cx, cz) or 1) < 0.85:
+                continue
+            key = (NM_RANK[pr['NonMotorizedType']], -d)
+            if best is None or key > best[0]:
+                best = (key, c, pr)
+        if not best:
+            continue
+        _, c, pr = best
+        kind, side = pr['NonMotorizedType'], (pr.get('SideOfStreet') or '').strip()
+        # which of the link's sides: both, its right (1) or its left (2)
+        two = side.startswith('2Way')
+        comp = COMPASS.get(side[4:] if two else side)
+        if comp:
+            dot = comp[0] * rx + comp[1] * rz
+            if abs(dot) < 0.3:  # a compass side across the street's run: where the city's line lies
+                q = c.interpolate(c.project(mid))
+                off = (q.x - mid.x) * rx + (q.y - mid.y) * rz
+                sides = 3 if abs(off) < 1 else (1 if off > 0 else 2)
+            else:
+                sides = 1 if dot > 0 else 2
+        elif side in ('', 'None') and r['dir'] != 0:
+            sides = 1 if r['dir'] > 0 else 2  # a one-way's: on the right as it's driven
+        else:
+            sides = 3
+        if kind in ('Designated Bike', 'Suggested Bike'):
+            bits = 256
+            nm_route_links.append(li)
+        elif kind == 'Sharrow':
+            bits = (4 if sides & 1 else 0) | (8 if sides & 2 else 0)
+        elif kind == 'Advisory Bike':
+            bits = 1 | 2 | 128
+        else:
+            bits = sides
+            if two and sides != 3:
+                bits |= 512
+            if kind == 'Buffered Bike':
+                bits |= 16
+            elif kind == 'Protected Bike':
+                bits |= 64 if pr.get('LocationType') == 'CurbSeparated' else 32
+        kinds_n[kind] = kinds_n.get(kind, 0) + 1
+        g = glinks[li]
+        if g[8] != bits:
+            changed += 1
+            if not r['wt']:
+                nw = round(g[3] - bike_room(g[8]) + bike_room(bits), 1)
+                widened += nw != g[3]
+                g[3] = max(4.5, nw)
+            g[8] = bits
+    print(f'the city\'s bike routes on {sum(kinds_n.values())} links ({", ".join(f"{v} {k}" for k, v in sorted(kinds_n.items()))}); '
+          f'{changed} differ from OSM\'s, {widened} streets widened or narrowed')
+
+# Small green BIKE ROUTE signs along the city's signed routes (Designated and Suggested Bike): at each end of each
+# route and every 400 m along it, at the right-hand curb facing the riders coming, as flat [x, z, heading] (heading the
+# way the sign faces, radians from +z toward +x)
+bike_signs = []
+if nm_street:
+    routes = shapely.ops.linemerge(unary_union([l for l, p in nm_street if p['NonMotorizedType'] in ('Designated Bike', 'Suggested Bike')]))
+    route_lines = [g for g in getattr(routes, 'geoms', [routes]) if g.geom_type == 'LineString' and g.length > 30]
+    link_lines = [LineString(glink_way[li][1]) for li in nm_route_links]
+    lt = shapely.STRtree(link_lines) if link_lines else None
+    placed = []
+    for rl in route_lines:
+        n = max(1, round(rl.length / 400))
+        for k in range(n + 1):
+            for dirn in ((1,) if 0 < k < n else (1, -1)):
+                u = min(max(rl.length * k / n, 12), rl.length - 12)
+                if (k == 0 and dirn == -1) or (k == n and dirn == 1):
+                    continue
+                p = rl.interpolate(u)
+                pa, pb = rl.interpolate(max(0, u - 4)), rl.interpolate(min(rl.length, u + 4))
+                hx, hz = (pb.x - pa.x) * dirn, (pb.y - pa.y) * dirn
+                hl = math.hypot(hx, hz) or 1
+                hx, hz = hx / hl, hz / hl
+                if lt is None:
+                    continue
+                near = [i for i in lt.query(p.buffer(14)) if link_lines[i].distance(p) < 14]
+                if not near:
+                    continue
+                li = nm_route_links[min(near, key=lambda i: link_lines[i].distance(p))]
+                ll = link_lines[min(near, key=lambda i: link_lines[i].distance(p))]
+                q = ll.interpolate(ll.project(p))
+                half = glinks[li][3] / 2
+                x, z = q.x - hz * (half + 0.9), q.y + hx * (half + 0.9)  # the curb on the rider's right
+                if any(math.hypot(x - a, z - b) < 60 for a, b in placed):
+                    continue
+                placed.append((x, z))
+                bike_signs += [r1(x), r1(z), round(math.atan2(-hx, -hz), 2)]
+    print(f'{len(bike_signs) // 3} bike route signs')
 roadGraph = {'nodes': [v for p in gnodes for v in (r1(p[0]), r1(p[1]))], 'links': glinks, 'names': gnames}
 print(f'road graph {len(gnodes)} nodes {len(glinks)} links')
 
@@ -514,8 +689,28 @@ for f in bj['features']:
     # who owns it: 5 the University (campus brick & limestone), 6 the city, county, schools and federal government
     kind = OWNER_KIND.get(pr.get('Owned_By'), kind)
     buildings.append({'geom': geom, 'height': int(round(min(h, 120))), 'kind': kind, 'name': pr.get('Bldg_Name') or ''})
-print(f'{len(buildings)} buildings')
 built_union = unary_union([b['geom'] for b in buildings])
+# along the whole streets past the line the city has no footprints: OpenStreetMap's houses there, at a house's height
+if _ws:
+    _wsz = prep(unary_union([g.buffer(100) for g in _ws]))
+    _added = 0
+    for e in ways:
+        t = e.get('tags', {})
+        if 'building' not in t:
+            continue
+        g = area_of(e)
+        if g is None or g.area < 12:
+            continue
+        c = g.representative_point()
+        if not _wsz.contains(c) or not LAND.contains(c) or built_union.intersects(c):
+            continue
+        res = t.get('building') in ('yes', 'house', 'residential', 'detached', 'garage', 'shed', 'semidetached_house')
+        h = float(t['height']) if re.fullmatch(r'[0-9.]+', t.get('height', '')) else (3.5 if t.get('building') in ('garage', 'shed') else 7 if res else 9)
+        buildings.append({'geom': g, 'height': int(round(min(h, 120))), 'kind': 1 if res else 2, 'name': t.get('name', '')})
+        _added += 1
+    built_union = unary_union([b['geom'] for b in buildings])
+    print(f'{_added} OpenStreetMap buildings along the whole streets')
+print(f'{len(buildings)} buildings')
 
 # --- Blocks -----------------------------------------------------------------------------------------------------------------
 SIDEWALK = 4.6
@@ -995,6 +1190,15 @@ for fn in sorted(glob.glob(os.path.join(CAN, 'p*.json'))):
                 pg = make_valid(Polygon(rings[0], [r for r in rings[1:] if len(r) >= 4]))
                 if pg.area >= 12:
                     canopy_polys.append(pg)
+# and past the city line, where the city's canopy stops, the cover read from an aerial photo (fetch-canopy-extra.py)
+_beyond = LAND.difference(LIMITS)
+for fn in sorted(glob.glob(os.path.join(REF, 'canopy-extra', '*.json'))):
+    for f in json.load(open(fn)).get('features', []):
+        rings = [[xz(lon, lat) for lon, lat, *_ in ring] for ring in f['geometry']['coordinates']]
+        pg = make_valid(Polygon(rings[0], [r for r in rings[1:] if len(r) >= 4])).intersection(_beyond)
+        for p in parts(pg):
+            if p.area >= 12:
+                canopy_polys.append(p)
 print(f'{len(canopy_polys)} canopy patches, {sum(p.area for p in canopy_polys) / 1e6:.2f} km2')
 
 # --- Railroads (OSM railway=rail): the Michigan Line (Amtrak) along the Huron, the Ann Arbor Railroad and the Great
@@ -1296,8 +1500,111 @@ for w in ways:
         if g.length < 4:
             continue
         g = g.simplify(0.4)
-        trails.append([1 if soft else 0, round(wd, 1)] + flat(list(g.coords)))
-print(f'{len(trails)} trail pieces, {sum(1 for t in trails if t[0])} dirt')
+        board = t.get('bridge') == 'boardwalk' or sf == 'wood'
+        trails.append([3 if board else 1 if soft else 0, round(wd, 1)] + flat(list(g.coords)))
+osm_trails = len(trails)
+
+# The city's trails, park paths and shared-use paths (Non-Motorized Routes): OSM's trail pieces take the city's material
+# where most of a piece runs along one of its lines; the city's lines OSM is missing are added (kept clear of OSM's
+# paths, the mountain bike trails, the streets, buildings, golf courses and water); and each shared-use path beside a
+# street is a wide path over the sidewalk, pushed out past the curb. Kinds: 0 concrete, 1 dirt or gravel, 2 asphalt,
+# 3 a wooden boardwalk a little above the ground, 4 steps
+NM_KIND = {'Asphalt': 2, 'Concrete': 0, 'Nature Trail': 1, 'Unpaved': 1, 'Wooden': 3, 'Stairs': 4}
+NM_WIDTH = {0: 2.4, 1: 1.2, 2: 2.4, 3: 1.8, 4: 1.5}
+nm_off = [(l, p) for l, p in nm_feats if p.get('NonMotorizedType') in ('Trail', 'Shared Use')]
+if nm_off:
+    def nm_kind(p):
+        m = p.get('Material')
+        if m in NM_KIND:
+            return NM_KIND[m]
+        return 2 if p['NonMotorizedType'] == 'Shared Use' else 1
+    # OSM's own pieces take the city's material where 60% of one runs within 4 m of a line of it
+    mat_lines = {}
+    for l, p in nm_off:
+        mat_lines.setdefault(nm_kind(p), []).append(l)
+    mat_area = {k: unary_union([l.buffer(4, 4) for l in v]) for k, v in mat_lines.items()}
+    for a in mat_area.values():
+        shapely.prepare(a)
+    retyped = 0
+    for tr in trails:
+        g = LineString(list(zip(tr[2::2], tr[3::2])))
+        if g.length < 4:
+            continue
+        for k, a in mat_area.items():
+            if a.intersects(g) and g.intersection(a).length >= 0.6 * g.length:
+                if tr[0] != k and not (tr[0] == 3 and k in (0, 2)):
+                    tr[0] = k
+                    if k in (0, 2):
+                        tr[1] = max(tr[1], 2.0)
+                    retyped += 1
+                break
+    # what's there already: every OSM path, sidewalk and track (not only the ones drawn as trails), the mountain bike
+    # trails and what a path can't run through
+    have = []
+    for w in ways:
+        t = w.get('tags', {})
+        if t.get('highway') in TRAIL_HW | {'steps'}:
+            pts = way_pts(w)
+            if len(pts) >= 2:
+                have.append(LineString(pts).buffer(7, 2))
+    try:
+        for m in json.load(open(os.path.join(ROOT, 'Web/data/mtb-trails.json')))['trails']:
+            if len(m) >= 5:
+                have.append(LineString(list(zip(m[1::2], m[2::2]))).buffer(5, 2))
+    except (OSError, ValueError, KeyError):
+        pass
+    have = unary_union(have)
+    keep_out = unary_union([have, road_union.buffer(1), built_union, golf_union])
+    keep_out_dry = keep_out.union(water)
+    shapely.prepare(keep_out)
+    shapely.prepare(keep_out_dry)
+    added = {k: 0 for k in NM_WIDTH}
+    # the streets, for the shared-use paths beside them
+    st_lines = [(LineString(r['pts']), r['w']) for r in drive if not r['hw'] and not r['tunnel'] and len(r['pts']) >= 2]
+    st_tree = shapely.STRtree([l for l, _ in st_lines])
+    beside = 0
+    for l, p in nm_off:
+        k = nm_kind(p)
+        if p['NonMotorizedType'] == 'Shared Use' and p.get('LocationType') in ('Adjacent', 'CurbSeparated', 'In the Road', None):
+            # beside a street: pushed out to 1.9 m past the curb wherever it's closer, then kept off the street
+            line = shapely.segmentize(l, 4)
+            pts_ = []
+            for x, z in line.coords:
+                pt = Point(x, z)
+                near = st_tree.query(pt.buffer(16))
+                if len(near):
+                    j = min(near, key=lambda i: st_lines[i][0].distance(pt))
+                    sl_, sw = st_lines[j]
+                    d = sl_.distance(pt)
+                    want = sw / 2 + 1.9
+                    if d < want - 0.2:
+                        q = sl_.interpolate(sl_.project(pt))
+                        ux, uz = x - q.x, z - q.y
+                        ul = math.hypot(ux, uz)
+                        if ul < 0.05:  # on the centreline: off to the side the city's line is, across the street
+                            a_, b_ = sl_.interpolate(max(0, sl_.project(pt) - 2)), sl_.interpolate(sl_.project(pt) + 2)
+                            ux, uz, ul = -(b_.y - a_.y), b_.x - a_.x, math.hypot(b_.x - a_.x, b_.y - a_.y) or 1
+                        x, z = q.x + ux / ul * want, q.y + uz / ul * want
+                pts_.append((x, z))
+            cut = LineString(pts_).difference(road_union.buffer(0.3)).difference(built_union)
+            wd, k = 3.0, (0 if k == 0 else 2)
+            beside += 1
+        else:
+            if k == 3:
+                cut = l.difference(keep_out)
+            else:
+                cut = l.difference(keep_out_dry)
+            wd = NM_WIDTH[k]
+        for g in ([cut] if cut.geom_type == 'LineString' else [g for g in getattr(cut, 'geoms', []) if g.geom_type == 'LineString']):
+            if g.length < 12 and not (k == 4 and g.length > 3):
+                continue
+            g = g.simplify(0.4)
+            trails.append([k, wd] + flat(list(g.coords)))
+            added[k] += 1
+    print(f'the city\'s paths: {retyped} OSM trail pieces take its material; {sum(added.values())} pieces added '
+          f'({added[2]} asphalt, {added[0]} concrete, {added[1]} dirt, {added[3]} boardwalk, {added[4]} steps), '
+          f'{beside} shared-use paths beside streets')
+print(f'{len(trails)} trail pieces ({osm_trails} from OSM), {sum(1 for t in trails if t[0] == 1)} dirt')
 
 # --- Streetlights: the city's map of every streetlight (ckan.a2gov.org "streetlights"), each as a cobra head on a pole
 # with its arm out over the nearest street (0), or a post-top lantern on campus, in lots and along paths (1).
@@ -1496,6 +1803,7 @@ GEO = {
     'rail': {'tracks': rail_tracks, 'routes': rail_routes},
     'golf': golf,
     'trails': trails,
+    'bikeSigns': bike_signs,
     'streetlights': streetlights,
     'controls': controls,
     'signs': {'names': sign_names, 'list': signs_out},
